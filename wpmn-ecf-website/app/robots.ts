@@ -1,3 +1,3 @@
-import {runtime} from '@/lib/store';
+import {siteOrigin} from '@/lib/seo';
 export const dynamic='force-dynamic';
-export default function robots(){const base=runtime('SITE_ORIGIN').replace(/\/$/,'')||'https://wpmn-ecf.franciskumi17.chatgpt.site';return {rules:{userAgent:'*',allow:'/',disallow:['/editor','/api/']},sitemap:base+'/sitemap.xml'}}
+export default function robots(){return {rules:{userAgent:'*',allow:['/','/api/assets/'],disallow:['/editor','/api/']},sitemap:siteOrigin()+'/sitemap.xml'}}

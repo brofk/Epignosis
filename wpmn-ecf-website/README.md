@@ -8,6 +8,10 @@ The site owner uses `/editor`. Sign in through the platform's Sign in with ChatG
 
 The editor includes page text and settings; sermon, article, series, event and FAQ drafts; private contact inbox; photos and PDF uploads; and the supplied content calendar and article plan. Page text is applied on Save. Resources require Published status to appear publicly. Preserve existing slugs to avoid breaking shared links. Source changes can also be requested through Sites.
 
+In Page text & settings, **Brand, name & logos** controls the public header name, WPMN and ECF logo files, favicon, Midnight Violet, and Faith Teal. Only validated uploaded image assets may be used for brand files. Colors must preserve at least 4.5:1 contrast with white text. The initial colors follow the supplied brief; exact official colors and logo files have not been confirmed. The current text wordmark is not an official logo. Changing the visible site name does not register or change a domain.
+
+**Search visibility (SEO)** controls the homepage search title and description and public Google/Bing verification codes. Each public page has a distinct canonical URL; the homepage supplies WebSite and Organization structured data using the saved identity. The sitemap includes only published resources. Search Console, Bing Webmaster Tools, and Google Business Profile require ministry-owned accounts and verification; no ongoing monitoring is configured. Set the verified primary domain through Sites and then update `SITE_ORIGIN` before publishing. Google Workspace email and its DNS records are configured with the ministry's domain provider, separately from the content editor.
+
 ## Contact handling
 
 Eight form categories save to D1. Server-side validation, origin checks, honeypot handling, request size limits, duplicate protection and hourly rate limiting run before storage. A request is acknowledged only after successful persistence. Input is retained on errors.
