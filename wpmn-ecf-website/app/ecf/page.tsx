@@ -1,7 +1,6 @@
-import Link from 'next/link';
+import Link from '@/components/site/site-link';
 import {Shell,PageHero,Paragraphs,TextLink,ConnectBand,CampusCards} from '@/components/site/ui';
 import {getPublicContent} from '@/lib/store';
-import {brandImage} from '@/lib/brand';
 import {pageMetadata} from '@/lib/seo';
 
 export const dynamic='force-dynamic';
@@ -9,13 +8,12 @@ export function generateMetadata(){return pageMetadata('Epignosis Christian Fami
 
 export default async function ECF(){
   const {settings:s}=await getPublicContent();
-  const logo=brandImage(s['brand.ecfLogoImage']);
   return <Shell s={s}>
     <PageHero label="OUR CHURCH FAMILY" title={s['ecf.heading']} intro={s['ecf.intro']}>
       <div className="actions"><Link className="button" href="/visit">Plan a visit</Link><TextLink href="/campuses">Explore our communities</TextLink></div>
     </PageHero>
     <section className="section wrap"><div className="split">
-      <div>{logo&&<img className="ecf-page-logo" src={logo} alt={s['brand.ecfLogoAlt']} width={375} height={121}/>}<h2>{s['ecf.familyHeading']}</h2></div>
+      <div><div className="ecf-identity-panel"><img src="/images/ecf-primary-white.png" alt="Epignosis Christian Family" width={300} height={300}/><span>EPIGNOSIS CHRISTIAN FAMILY</span></div><h2>{s['ecf.familyHeading']}</h2></div>
       <div><Paragraphs text={s['ecf.familyBody']}/><TextLink href="/about">Our place within WPMN</TextLink></div>
     </div></section>
     <section className="section campuses-section"><div className="wrap two-col">
