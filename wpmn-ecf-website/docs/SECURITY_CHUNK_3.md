@@ -54,3 +54,7 @@ The trusted reviewer was installed on the default branch before this pull reques
 ## Safe batched-review activation
 
 The repaired reviewer is installed on the default branch. It reviews large changes in complete file-aligned batches and redacts provider response bodies from public errors. This documentation-only checkpoint triggers a fresh review from the trusted repaired revision and does not alter website runtime behavior.
+
+## Credential validation retry
+
+The repository owner updated the review credential. This documentation-only checkpoint requests a new automatic review from the repaired trusted workflow and does not alter website runtime behavior.
