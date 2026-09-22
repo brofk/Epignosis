@@ -48,3 +48,6 @@ Because GitHub workflows using `pull_request_target` are loaded from the default
 ## Asset storage note
 
 The public GitHub connector rejected an attempted binary brand asset upload because automated review classified it as a potentially sensitive community photograph. The code synchronization continued without bypassing that restriction. The complete image set remains in the Sites source and deployment archive. Existing approved GitHub brand assets remain untouched; any missing community photography should later be supplied through an approved private or public asset store with explicit publication permission.
+## Workflow activation checkpoint
+
+The trusted reviewer was installed on the default branch before this pull request was re-synchronized. This documentation-only commit triggers the reviewer and deterministic security checks against the current website head without changing runtime behavior.
