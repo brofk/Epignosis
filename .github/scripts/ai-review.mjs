@@ -148,7 +148,9 @@ try {
         text: {format: {type: 'json_schema', name: 'production_review', strict: true, schema}},
       }),
     });
-    if (!response.ok) throw new Error(`OpenAI review batch ${index + 1} failed: ${response.status} ${await response.text()}`);
+    if (!response.ok) {
+      throw new Error(`OpenAI review batch ${index + 1} failed with HTTP ${response.status}. Check the repository API key, API billing, model access, and OpenAI service status.`);
+    }
     const payload = await response.json();
     const outputText = payload.output_text || payload.output?.flatMap(item => item.content || []).find(item => item.type === 'output_text')?.text;
     if (!outputText) throw new Error(`OpenAI returned no structured review text for batch ${index + 1}.`);
