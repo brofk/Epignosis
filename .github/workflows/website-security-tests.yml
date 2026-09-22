@@ -31,8 +31,6 @@ jobs:
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: '22.13.0'
-          cache: pnpm
-          cache-dependency-path: wpmn-ecf-website/pnpm-lock.yaml
       - name: Install pinned dependencies
         run: npm run install:ci
       - name: Run security tests
