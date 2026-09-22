@@ -1,4 +1,4 @@
-import Link from 'next/link';
+import Link from '@/components/site/site-link';
 import {Shell,PageHero,Paragraphs,TextLink,ConnectBand} from '@/components/site/ui';
 import {getPublicContent} from '@/lib/store';
 import {pageMetadata} from '@/lib/seo';

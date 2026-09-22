@@ -1,0 +1,27 @@
+/* Supplied ECF brand marks: gradient mark on light surfaces, white marks on dark surfaces. */
+.strip-mark{width:58px;height:58px;object-fit:contain;flex-shrink:0}
+.ecf-identity-panel{display:flex;align-items:center;justify-content:center;flex-direction:column;gap:14px;min-height:330px;margin-bottom:30px;padding:30px;border-radius:4px;background:linear-gradient(135deg,var(--violet),var(--teal));color:#fff}
+.ecf-identity-panel img{width:min(230px,65%);height:auto;object-fit:contain}
+.ecf-identity-panel span{font-size:.68rem;letter-spacing:.18em;text-align:center}
+.footer-ecf-logo{background:var(--violet);padding:14px;max-width:220px}
+
+/* Keep the complete ministry tagline visible on every public page. */
+.brand-tagline{display:flex;flex-wrap:wrap;justify-content:center;gap:4px 0;margin:0;font:500 1rem/1.6 'Inter',Arial,sans-serif;letter-spacing:0}
+.tagline-part{max-width:100%;overflow-wrap:anywhere}
+.tagline-divider{display:inline-block;padding-inline:12px}
+.site-tagline{background:var(--violet);color:#fff;padding:14px 20px}
+.footer-tagline{margin-top:42px;padding-top:28px;border-top:1px solid var(--border);color:var(--violet)}
+.footer-note{text-align:center;font-size:.875rem;line-height:1.7}
+.mobile-sheet{overflow-y:auto;max-height:100dvh}
+.footer-grid a:focus-visible{outline-color:var(--violet)}
+@media(max-width:620px){
+  .brand-tagline{flex-direction:column;align-items:center;font-size:.9375rem;gap:2px}
+  .tagline-divider{display:none}
+  .site-tagline{padding-block:12px}
+}
+
+/* A persistent, keyboard-accessible return control for long teaching pages. */
+.back-to-top{position:fixed;right:20px;bottom:20px;z-index:35;display:inline-flex;align-items:center;gap:7px;min-height:46px;padding:0 14px;border:1px solid rgb(255 255 255 / .35);border-radius:999px;background:var(--violet);color:#fff;box-shadow:0 8px 24px rgb(32 40 39 / .18);font-size:.78rem;font-weight:600;text-decoration:none}
+.back-to-top:hover{background:var(--teal);color:#fff;text-decoration:none}
+.back-to-top:focus-visible{outline:3px solid #fff;outline-offset:3px}
+@media(max-width:620px){.back-to-top{right:14px;bottom:14px;min-height:48px;padding-inline:13px}}

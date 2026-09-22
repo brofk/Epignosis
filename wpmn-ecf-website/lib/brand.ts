@@ -17,7 +17,7 @@ export function colorChannels(hex: string) {
 
 export function brandImage(value: string) {
   // Brand files come from the authenticated, validated site uploader.
-  if (['/images/ecf-horizontal.png','/images/ecf-avatar.png'].includes(value)) return value;
+  if (['/images/ecf-horizontal.png','/images/ecf-avatar.png','/images/ecf-brandmark.png','/images/ecf-primary-white.png','/images/ecf-horizontal-white.png'].includes(value)) return value;
   return /^\/api\/assets\/[0-9a-f-]{36}$/i.test(value) ? value : '';
 }
 
