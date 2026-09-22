@@ -51,3 +51,6 @@ The public GitHub connector rejected an attempted binary brand asset upload beca
 ## Workflow activation checkpoint
 
 The trusted reviewer was installed on the default branch before this pull request was re-synchronized. This documentation-only commit triggers the reviewer and deterministic security checks against the current website head without changing runtime behavior.
+## Safe batched-review activation
+
+The repaired reviewer is installed on the default branch. It reviews large changes in complete file-aligned batches and redacts provider response bodies from public errors. This documentation-only checkpoint triggers a fresh review from the trusted repaired revision and does not alter website runtime behavior.
