@@ -10,7 +10,7 @@ const sample={
   confidential:1,team:'Pastoral Team',status:'New',assignee:'Sample Pastor',follow_up:'',response_due_at:'',notes:'Synthetic private note',tags:'["pastoral-care"]',created_at:'2026-09-24T00:00:00Z',updated_at:'2026-09-24T00:00:00Z'
  }],
  rate_limits:[{key:'ip-derived-value',count:2,expires_at:1790208000}],
- records:[{id:'record_real_1',kind:'article',title:'Synthetic Article',slug:'synthetic-article',status:'draft',data:JSON.stringify({summary:'Contact person@example.com for the synthetic example.'}),version:1,updated_at:'2026-09-24T00:00:00Z'}]
+ records:[{id:'record_real_1',kind:'article',title:'Synthetic Article',slug:'synthetic-article',status:'draft',data:JSON.stringify({summary:'Contact person@example.com for the synthetic example.'}),metadata:JSON.stringify({contact:'alternate@example.com',phone:'+63 918 765 4321',password:'alternate-plain-value',pastoralNote:'Synthetic pastoral detail'}),version:1,updated_at:'2026-09-24T00:00:00Z'}]
 };
 
 test('sanitizer preserves table, row, and column shape while removing identities',()=>{
@@ -31,11 +31,16 @@ test('sanitizer preserves table, row, and column shape while removing identities
  assert.ok(!JSON.stringify(sanitizedPayload).includes('ordinary-value'));
  assert.ok(!JSON.stringify(sanitizedPayload).includes('plain-value'));
  assert.ok(!JSON.stringify(sanitizedPayload).includes('opaque-value'));
+ const sanitizedMetadata=JSON.parse(sanitized.records[0].metadata);
+ assert.ok(!JSON.stringify(sanitizedMetadata).includes('alternate@example.com'));
+ assert.ok(!JSON.stringify(sanitizedMetadata).includes('+63 918 765 4321'));
+ assert.match(sanitizedMetadata.password,/^test_secret_/);
+ assert.ok(!JSON.stringify(sanitizedMetadata).includes('Synthetic pastoral detail'));
  assert.deepEqual(findSensitiveValues(sanitized,{denylist:['Sample Pastor','user_real_123']}),[]);
 });
 
 test('leak scanner rejects unsanitized email, phone, token, and denylisted values',()=>{
- const unsafe={rows:[{email:'real.person@example.com',notes:'Call +63 917 555 1212 for Known Person',payload:JSON.stringify({authorization:'Bearer ordinary-value',password:'plain-value'}),token:'sk_live_1234567890abcdef'}]};
+ const unsafe={rows:[{email:'real.person@example.com',notes:'Call +63 917 555 1212 for Known Person',details:JSON.stringify({authorization:'Bearer ordinary-value',password:'plain-value',alternateEmail:'alternate@example.com'}),token:'sk_live_1234567890abcdef'}]};
  const findings=findSensitiveValues(unsafe,{denylist:['Known Person']});
  assert.deepEqual(new Set(findings.map(item=>item.type)),new Set(['email','phone','token','denylist','secret-field']));
 });

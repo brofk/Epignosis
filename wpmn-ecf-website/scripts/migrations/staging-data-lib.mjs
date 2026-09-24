@@ -61,8 +61,12 @@ function fakePhone(value){
 }
 
 function maybeStructured(value,key,path){
- if(typeof value!=='string'||!/(payload|data|value|tags)/i.test(key))return null;
- try{return JSON.stringify(sanitizeValue(JSON.parse(value),key,path));}catch{return null;}
+ if(typeof value!=='string'||!['{','['].includes(value.trimStart()[0]))return null;
+ try{
+  const parsed=JSON.parse(value);
+  if(parsed===null||typeof parsed!=='object')return null;
+  return JSON.stringify(sanitizeValue(parsed,key,path));
+ }catch{return null;}
 }
 
 export function sanitizeValue(value,key='',path='root'){
@@ -104,8 +108,11 @@ export function findSensitiveValues(value,{denylist=[]}={}){
   if(Array.isArray(current)){current.forEach((item,index)=>visit(item,`${path}[${index}]`,key));return;}
   if(typeof current==='object'){for(const [childKey,child] of Object.entries(current))visit(child,`${path}.${childKey}`,childKey);return;}
   if(typeof current!=='string')return;
-  if(/(payload|data|value|tags)/i.test(key)){
-   try{visit(JSON.parse(current),`${path}.$parsed`,key);}catch{}
+  if(['{','['].includes(current.trimStart()[0])){
+   try{
+    const parsed=JSON.parse(current);
+    if(parsed!==null&&typeof parsed==='object')visit(parsed,`${path}.$parsed`,key);
+   }catch{}
   }
   const lower=current.toLowerCase();
   for(const term of denied)if(lower.includes(term))findings.push({path,type:'denylist',detail:term});
