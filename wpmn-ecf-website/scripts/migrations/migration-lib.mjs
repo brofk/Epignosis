@@ -65,5 +65,5 @@ export function tableNames(db){
 
 export function columnNames(db,table){
  if(!/^[a-z_][a-z0-9_]*$/i.test(table))throw new Error('Unsafe table name');
- return db.prepare(`PRAGMA table_info(${table})`).all().map(row=>row.name);
+ return db.prepare('SELECT name FROM pragma_table_info(?) ORDER BY cid').all(table).map(row=>row.name);
 }

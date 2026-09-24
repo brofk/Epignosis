@@ -31,21 +31,22 @@ test('sanitizer preserves table, row, and column shape while removing identities
  assert.ok(!JSON.stringify(sanitized).includes('Synthetic private note'));
  assert.ok(!JSON.stringify(sanitized).includes('Pastoral comment'));
  assert.ok(!JSON.stringify(sanitized).includes('Personal detail'));
- assert.notEqual(sanitized.submissions[0].first_name,sample.submissions[0].first_name);
- assert.notEqual(sanitized.submissions[0].last_name,sample.submissions[0].last_name);
- assert.notEqual(sanitized.submissions[0].full_name,sample.submissions[0].full_name);
- assert.notEqual(sanitized.submissions[0].display_name,sample.submissions[0].display_name);
- assert.notEqual(sanitized.submissions[0].given_name,sample.submissions[0].given_name);
- assert.notEqual(sanitized.submissions[0].family_name,sample.submissions[0].family_name);
- assert.notEqual(sanitized.submissions[0].contact_name,sample.submissions[0].contact_name);
- assert.notEqual(sanitized.submissions[0].owner_name,sample.submissions[0].owner_name);
- assert.notEqual(sanitized.submissions[0].submitted_by,sample.submissions[0].submitted_by);
- assert.notEqual(sanitized.submissions[0].created_by,sample.submissions[0].created_by);
- assert.notEqual(sanitized.submissions[0].updated_by,sample.submissions[0].updated_by);
- assert.notEqual(sanitized.submissions[0].requested_by,sample.submissions[0].requested_by);
- assert.notEqual(sanitized.submissions[0].reviewed_by,sample.submissions[0].reviewed_by);
- assert.notEqual(sanitized.submissions[0].assigned_by,sample.submissions[0].assigned_by);
+ assert.match(sanitized.submissions[0].first_name,/^test_person_/);
+ assert.match(sanitized.submissions[0].last_name,/^test_person_/);
+ assert.match(sanitized.submissions[0].full_name,/^test_person_/);
+ assert.match(sanitized.submissions[0].display_name,/^test_person_/);
+ assert.match(sanitized.submissions[0].given_name,/^test_person_/);
+ assert.match(sanitized.submissions[0].family_name,/^test_person_/);
+ assert.match(sanitized.submissions[0].contact_name,/^test_person_/);
+ assert.match(sanitized.submissions[0].owner_name,/^test_person_/);
+ assert.match(sanitized.submissions[0].submitted_by,/^test_person_/);
+ assert.match(sanitized.submissions[0].created_by,/^test_person_/);
+ assert.match(sanitized.submissions[0].updated_by,/^test_person_/);
+ assert.match(sanitized.submissions[0].requested_by,/^test_person_/);
+ assert.match(sanitized.submissions[0].reviewed_by,/^test_person_/);
+ assert.match(sanitized.submissions[0].assigned_by,/^test_person_/);
  const sanitizedPayload=JSON.parse(sanitized.submissions[0].payload);
+ assert.match(sanitizedPayload.firstName,/^test_person_/);
  assert.match(sanitizedPayload.credentials.apiKey,/^test_secret_/);
  assert.match(sanitizedPayload.credentials.access_key,/^test_secret_/);
  assert.match(sanitizedPayload.credentials.owner_key,/^test_secret_/);
@@ -94,9 +95,9 @@ test('date shifting is deterministic and preserves ordering',()=>{
 });
 
 test('leak scanner rejects unsanitized email, phone, token, and denylisted values',()=>{
- const unsafe={rows:[{email:'real.person@example.com',phone:639175551212,user_id:987654,notes:'Call +63 917 555 1212 for Known Person',details:JSON.stringify({authorization:'Bearer ordinary-value',password:'plain-value',alternateEmail:'alternate@example.com',misc:'Bearer abcDEF1234567890',opaque:'Abcdefghijklmnopqrstuvwxyz1234567890'}),token:'sk_live_1234567890abcdef'}]};
+ const unsafe={rows:[{email:'real.person@example.com',phone:639175551212,user_id:987654,full_name:'Known Person',notes:'Call +63 917 555 1212 for Known Person',details:JSON.stringify({authorization:'Bearer ordinary-value',password:'plain-value',alternateEmail:'alternate@example.com',misc:'Bearer abcDEF1234567890',opaque:'Abcdefghijklmnopqrstuvwxyz1234567890'}),token:'sk_live_1234567890abcdef'}]};
  const findings=findSensitiveValues(unsafe,{denylist:['Known Person']});
- assert.deepEqual(new Set(findings.map(item=>item.type)),new Set(['email','phone','token','denylist','secret-field','numeric-sensitive']));
+ assert.deepEqual(new Set(findings.map(item=>item.type)),new Set(['email','phone','token','denylist','secret-field','numeric-sensitive','identity-field']));
 });
 
 test('sanitizer rejects a malformed table export',()=>{
