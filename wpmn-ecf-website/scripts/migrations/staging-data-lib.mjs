@@ -10,13 +10,16 @@ const PRESERVED_COLUMNS=new Map([
  ['write_guards',new Set(['valid'])],
  ['settings',new Set(['version'])]
 ]);
+const SUPPORTED_TABLES=new Set([
+ 'assets','audit_events','claims','editors','rate_limits','records','settings','submissions','write_guards'
+]);
 const TEMPORAL_KEYS=new Set([
  'expires_at','expiresAt','created_at','createdAt','updated_at','updatedAt','follow_up','followUp',
  'response_due_at','responseDueAt','date','event_date','eventDate','scheduled_at','scheduledAt','due_at','dueAt'
 ]);
 const EMAIL_KEYS=/email/i;
 const PHONE_KEYS=/(phone|mobile|whatsapp|contactNumber)/i;
-const ID_KEYS=/(^id$|_id$|Id$|user|claim|owner|actor|assignee)/i;
+const ID_KEYS=/(^id$|(?:^|_)[a-z0-9]+_id$|[a-z0-9]+Id$|(?:^|_)(user|claim|owner|actor|assignee)(?:_|$))/i;
 const SECRET_KEYS=/(token|secret|password|authorization|cookie|session|credential|api.?key|access.?key|private.?key|client.?secret|signing.?key|(^|[_-])key($|[_-]))/i;
 const EMAIL_RE=/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi;
 const EMAIL_TEST_RE=/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i;
@@ -156,6 +159,8 @@ function validateRows(table,rows){
 
 export function sanitizeDataset(dataset){
  if(!dataset||typeof dataset!=='object'||Array.isArray(dataset))throw new Error('Dataset must be an object keyed by table name');
+ const unknown=Object.keys(dataset).filter(table=>!SUPPORTED_TABLES.has(table));
+ if(unknown.length)throw new Error(`Unsupported table(s): ${unknown.sort().join(', ')}. Review the schema and sanitizer before adding a table.`);
  const context=contextFor(dataset);
  return Object.fromEntries(Object.entries(dataset).map(([table,rows])=>{
   validateRows(table,rows);

@@ -6,7 +6,7 @@ const sample={
  editors:[{user_id:'user_real_123',email:'pastor@example.com',role:'owner',created_at:'2026-09-24T00:00:00Z'}],
  claims:[{id:'claim_real_123',user_id:'user_real_123'}],
  submissions:[{
-  id:'submission_real_1',category:'prayer',payload:JSON.stringify({firstName:'Sample',email:'person@example.com',phone:639171234567,otp:123456,user_id:987654,consent:true,prayerRequest:'This is synthetic test data, not a real prayer.',status:'Pastoral crisis involving person',role:'Named family member',category:'Private care detail',team:'Specific care relationship',credentials:{apiKey:'ordinary-value',access_key:'access-value',owner_key:'owner-secret-value',api_key_id:'key-id-value',authorization:'Bearer ordinary-value',password:'plain-value',session:'opaque-value'}}),
+  id:'submission_real_1',category:'prayer',payload:JSON.stringify({firstName:'Sample',email:'person@example.com',phone:639171234567,otp:123456,user_id:987654,record_id:'record-real-1',submission_id:'submission-real-1',editor_id:'editor-real-1',owner_id:'owner-real-1',relatedRecordId:'related-real-1',consent:true,prayerRequest:'This is synthetic test data, not a real prayer.',status:'Pastoral crisis involving person',role:'Named family member',category:'Private care detail',team:'Specific care relationship',credentials:{apiKey:'ordinary-value',access_key:'access-value',owner_key:'owner-secret-value',api_key_id:'key-id-value',authorization:'Bearer ordinary-value',password:'plain-value',session:'opaque-value'}}),
   confidential:1,team:'Pastoral Team',status:'New',assignee:'Sample Pastor',first_name:'Sample',last_name:'Person',full_name:'Sample Person',display_name:'Sample Display',given_name:'Sample Given',family_name:'Sample Family',contact_name:'Sample Contact',owner_name:'Sample Pastor',submitted_by:'Sample Submitter',created_by:'Sample Creator',updated_by:'Sample Updater',requested_by:'Sample Requester',reviewed_by:'Sample Reviewer',assigned_by:'Sample Assigner',comments_text:'Pastoral comment',unanticipated:'Personal detail',follow_up:'',response_due_at:'',notes:'Synthetic private note',tags:'["pastoral-care"]',created_at:'2026-09-24T00:00:00Z',updated_at:'2026-09-24T00:00:00Z'
  }],
  rate_limits:[{key:'ip-derived-value',count:2,expires_at:1790208000}],
@@ -60,6 +60,11 @@ test('sanitizer preserves table, row, and column shape while removing identities
  assert.notEqual(sanitizedPayload.phone,639171234567);
  assert.notEqual(sanitizedPayload.otp,123456);
  assert.notEqual(sanitizedPayload.user_id,987654);
+ assert.notEqual(sanitizedPayload.record_id,'record-real-1');
+ assert.notEqual(sanitizedPayload.submission_id,'submission-real-1');
+ assert.notEqual(sanitizedPayload.editor_id,'editor-real-1');
+ assert.notEqual(sanitizedPayload.owner_id,'owner-real-1');
+ assert.notEqual(sanitizedPayload.relatedRecordId,'related-real-1');
  assert.equal(sanitizedPayload.consent,false);
  assert.ok(!JSON.stringify(sanitizedPayload).includes('ordinary-value'));
  assert.ok(!JSON.stringify(sanitizedPayload).includes('plain-value'));
@@ -76,16 +81,16 @@ test('sanitizer preserves table, row, and column shape while removing identities
 });
 
 test('date shifting is deterministic and preserves ordering',()=>{
- const dated={rows:[
+ const dated={submissions:[
   {id:'one',created_at:'2026-01-01T00:00:00Z',date:'2026-01-01'},
   {id:'two',created_at:'2026-01-03T00:00:00Z',date:'2026-01-03'}
  ]};
  const first=sanitizeDataset(dated);
  const second=sanitizeDataset(dated);
  assert.deepEqual(first,second);
- assert.notEqual(first.rows[0].created_at,dated.rows[0].created_at);
- assert.equal(Date.parse(first.rows[1].created_at)-Date.parse(first.rows[0].created_at),2*24*60*60*1000);
- assert.equal(Date.parse(`${first.rows[1].date}T00:00:00Z`)-Date.parse(`${first.rows[0].date}T00:00:00Z`),2*24*60*60*1000);
+ assert.notEqual(first.submissions[0].created_at,dated.submissions[0].created_at);
+ assert.equal(Date.parse(first.submissions[1].created_at)-Date.parse(first.submissions[0].created_at),2*24*60*60*1000);
+ assert.equal(Date.parse(`${first.submissions[1].date}T00:00:00Z`)-Date.parse(`${first.submissions[0].date}T00:00:00Z`),2*24*60*60*1000);
 });
 
 test('leak scanner rejects unsanitized email, phone, token, and denylisted values',()=>{
@@ -99,4 +104,5 @@ test('sanitizer rejects a malformed table export',()=>{
  assert.throws(()=>sanitizeDataset({submissions:[null]}),/Table submissions row 0 must be an object/);
  assert.throws(()=>sanitizeDataset({submissions:['not-an-object']}),/Table submissions row 0 must be an object/);
  assert.throws(()=>datasetShape({submissions:[42]}),/Table submissions row 0 must be an object/);
+ assert.throws(()=>sanitizeDataset({pastoral_secrets:[{id:'one'}]}),/Unsupported table\(s\): pastoral_secrets/);
 });
