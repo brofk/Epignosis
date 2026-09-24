@@ -15,6 +15,8 @@ const EMAIL_TEST_RE=/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i;
 const PHONE_CANDIDATE_RE=/\+?\d(?:[\d\s().-]{6,}\d)/g;
 const JWT_RE=/\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/g;
 const TOKEN_RE=/\b(?:sk|pk|api|token|secret)[-_][A-Za-z0-9_-]{16,}\b/gi;
+const AUTH_HEADER_RE=/\b(?:Bearer\s+[A-Za-z0-9._~+/-]{8,}={0,2}|Basic\s+[A-Za-z0-9+/]{8,}={0,2})\b/gi;
+const OPAQUE_TOKEN_RE=/\b(?=[A-Za-z0-9_-]{32,}\b)(?=[A-Za-z0-9_-]*[A-Za-z])(?=[A-Za-z0-9_-]*\d)[A-Za-z0-9_-]+\b/g;
 
 function digest(value){return createHash('sha256').update(String(value)).digest('hex');}
 
@@ -82,7 +84,12 @@ export function sanitizeValue(value,key='',path='root'){
  if(PHONE_KEYS.test(key))return fakePhone(value);
  if(ID_KEYS.test(key))return fakeIdentifier(value,path);
  if(FREE_TEXT_KEYS.test(key))return fakeText(value,path);
- return value.replace(EMAIL_RE,match=>fakeEmail(match,path)).replace(JWT_RE,match=>fakeIdentifier(match,path)).replace(TOKEN_RE,match=>fakeIdentifier(match,path));
+ return value
+  .replace(EMAIL_RE,match=>fakeEmail(match,path))
+  .replace(JWT_RE,match=>fakeSecret(match,path))
+  .replace(TOKEN_RE,match=>fakeSecret(match,path))
+  .replace(AUTH_HEADER_RE,match=>fakeSecret(match,path))
+  .replace(OPAQUE_TOKEN_RE,match=>fakeSecret(match,path));
 }
 
 export function sanitizeDataset(dataset){
@@ -117,12 +124,15 @@ export function findSensitiveValues(value,{denylist=[]}={}){
   const lower=current.toLowerCase();
   for(const term of denied)if(lower.includes(term))findings.push({path,type:'denylist',detail:term});
   if(SECRET_KEYS.test(key)&&!current.startsWith('test_secret_'))findings.push({path,type:'secret-field',detail:'non-synthetic value under a secret-bearing key'});
-  for(const match of current.matchAll(EMAIL_RE))if(!match[0].toLowerCase().endsWith('@example.invalid'))findings.push({path,type:'email',detail:match[0]});
+  const scanText=current.replace(/test_secret_[a-f0-9]+/gi,'');
+  for(const match of scanText.matchAll(EMAIL_RE))if(!match[0].toLowerCase().endsWith('@example.invalid'))findings.push({path,type:'email',detail:match[0]});
   EMAIL_RE.lastIndex=0;
-  for(const match of current.matchAll(PHONE_CANDIDATE_RE))if(looksLikePhone(match[0]))findings.push({path,type:'phone',detail:'phone-like value'});
+  for(const match of scanText.matchAll(PHONE_CANDIDATE_RE))if(looksLikePhone(match[0]))findings.push({path,type:'phone',detail:'phone-like value'});
   PHONE_CANDIDATE_RE.lastIndex=0;
-  if(JWT_RE.test(current)){findings.push({path,type:'token',detail:'JWT-like value'});JWT_RE.lastIndex=0;}
-  if(TOKEN_RE.test(current)){findings.push({path,type:'token',detail:'secret-like value'});TOKEN_RE.lastIndex=0;}
+  if(JWT_RE.test(scanText)){findings.push({path,type:'token',detail:'JWT-like value'});JWT_RE.lastIndex=0;}
+  if(TOKEN_RE.test(scanText)){findings.push({path,type:'token',detail:'secret-like value'});TOKEN_RE.lastIndex=0;}
+  if(AUTH_HEADER_RE.test(scanText)){findings.push({path,type:'token',detail:'authorization-header value'});AUTH_HEADER_RE.lastIndex=0;}
+  if(OPAQUE_TOKEN_RE.test(scanText)){findings.push({path,type:'token',detail:'long opaque value'});OPAQUE_TOKEN_RE.lastIndex=0;}
  }
  visit(value,'root');
  return findings;
