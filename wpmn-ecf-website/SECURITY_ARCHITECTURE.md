@@ -1,0 +1,28 @@
+# WPMN Website Security Architecture
+
+## Current data and authentication path
+
+The website does not use Redis or Upstash. Sites supplies the authenticated user identity. The server independently checks editor roles and permissions against Cloudflare D1. D1 also stores public content, pastoral intake records, audit events, and rate-limit counters. Uploaded files use the configured object-storage binding.
+
+The `@upstash/redis` name may appear inside the lockfile because Drizzle ORM declares it as an optional peer dependency. It is not installed as an application dependency and is not used by the website.
+
+## Redis introduction rule
+
+Redis or Upstash must not be added as an application dependency, import, environment variable, session store, cache, or rate-limit backend through an ordinary feature change. The security test fails if those signals appear.
+
+This direct-dependency ban applies to `dependencies`, `devDependencies`, `optionalDependencies`, and `peerDependencies`. A Redis client used by build tooling can still introduce credentials, network access, or bundled runtime code, so it requires the same dedicated review. Transitive optional peer names that appear only in a package-manager lockfile are not treated as an application integration.
+
+The guard checks dependency names and specifiers, including npm aliases. Its source scan is limited to application directories, root runtime configuration, Sites manifests, and GitHub workflow files. Documentation and ordinary test text are excluded so that mentioning Redis does not produce a false release failure. Concrete imports and recognized Redis credential names in executable or deployment files still fail the check.
+
+Any future Redis proposal requires a separate security review before code is merged. That review must establish:
+
+- the exact data stored and whether it includes sessions, identities, permissions, pastoral information, or rate limits;
+- the exact Redis commands the application executes;
+- the narrow key prefixes the application may access;
+- a non-default ACL user that denies every unneeded command and key;
+- credential rotation, secret storage, revocation, and session-invalidation procedures;
+- network restrictions supported by the chosen host and deployment provider;
+- logs, alerting, backup, retention, and incident ownership;
+- tests proving the application cannot use the default administrative credential.
+
+If an exposed Redis credential is suspected, revoke or reset it first. Invalidate affected sessions before restoring application access. Adding an ACL after a credential leak does not invalidate copied session tokens.
