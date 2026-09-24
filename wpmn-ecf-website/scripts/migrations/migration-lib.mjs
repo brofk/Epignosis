@@ -15,9 +15,9 @@ export function splitMigration(sql){
 export function listMigrationFiles(directory){
  const files=readdirSync(directory).filter(name=>/^\d+.*\.sql$/.test(name));
  return files.sort((left,right)=>{
-  const leftNumber=Number.parseInt(left.match(/^\d+/)[0],10);
-  const rightNumber=Number.parseInt(right.match(/^\d+/)[0],10);
-  return leftNumber-rightNumber||left.localeCompare(right);
+  const normalize=name=>name.match(/^\d+/)[0].replace(/^0+(?=\d)/,'');
+  const leftNumber=normalize(left),rightNumber=normalize(right);
+  return leftNumber.length-rightNumber.length||leftNumber.localeCompare(rightNumber)||left.localeCompare(right);
  }).map(name=>join(directory,name));
 }
 

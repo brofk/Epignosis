@@ -89,7 +89,10 @@ test('changing an already applied migration is rejected by checksum',()=>{
 test('migration filenames are ordered by numeric prefix rather than text order',()=>{
  const directory=mkdtempSync(join(tmpdir(),'wpmn-order-'));
  try{
-  for(const name of ['10_ten.sql','2_two.sql','001_one.sql','notes.txt'])writeFileSync(join(directory,name),'SELECT 1;\n');
-  assert.deepEqual(listMigrationFiles(directory).map(file=>file.slice(directory.length+1)),['001_one.sql','2_two.sql','10_ten.sql']);
+  const names=['10_ten.sql','2_two.sql','001_one.sql','0000000000000000000000000000000000003_three.sql','99999999999999999999999999999999999999_large.sql','notes.txt'];
+  for(const name of names)writeFileSync(join(directory,name),'SELECT 1;\n');
+  assert.deepEqual(listMigrationFiles(directory).map(file=>file.slice(directory.length+1)),[
+   '001_one.sql','2_two.sql','0000000000000000000000000000000000003_three.sql','10_ten.sql','99999999999999999999999999999999999999_large.sql'
+  ]);
  }finally{rmSync(directory,{recursive:true,force:true});}
 });

@@ -10,7 +10,7 @@ const sample={
   confidential:1,team:'Pastoral Team',status:'New',assignee:'Sample Pastor',first_name:'Sample',last_name:'Person',full_name:'Sample Person',display_name:'Sample Display',given_name:'Sample Given',family_name:'Sample Family',contact_name:'Sample Contact',owner_name:'Sample Pastor',submitted_by:'Sample Submitter',created_by:'Sample Creator',updated_by:'Sample Updater',requested_by:'Sample Requester',reviewed_by:'Sample Reviewer',assigned_by:'Sample Assigner',comments_text:'Pastoral comment',unanticipated:'Personal detail',follow_up:'',response_due_at:'',notes:'Synthetic private note',tags:'["pastoral-care"]',created_at:'2026-09-24T00:00:00Z',updated_at:'2026-09-24T00:00:00Z'
  }],
  rate_limits:[{key:'ip-derived-value',count:2,expires_at:1790208000}],
- records:[{id:'record_real_1',kind:'article',title:'Synthetic Article',slug:'synthetic-article',status:'draft',data:JSON.stringify({summary:'Contact person@example.com for the synthetic example.'}),metadata:JSON.stringify({contact:'alternate@example.com',phone:'+63 918 765 4321',password:'alternate-plain-value',pastoralNote:'Synthetic pastoral detail',misc:'Bearer abcDEF1234567890',opaque:'Abcdefghijklmnopqrstuvwxyz1234567890'}),version:1,updated_at:'2026-09-24T00:00:00Z'}]
+ records:[{id:'record_real_1',kind:'article',title:'Synthetic Article',slug:'synthetic-article',status:'draft',data:JSON.stringify({summary:'Contact person@example.com for the synthetic example.'}),metadata:JSON.stringify({contact:'alternate@example.com',phone:'+63 918 765 4321',password:'alternate-plain-value',pastoralNote:'Synthetic pastoral detail',misc:'Bearer abcDEF1234567890 then call +63 919 555 0101',opaque:'Abcdefghijklmnopqrstuvwxyz1234567890'}),version:1,updated_at:'2026-09-24T00:00:00Z'}]
 };
 
 test('sanitizer preserves table, row, and column shape while removing identities',()=>{
@@ -61,6 +61,7 @@ test('sanitizer preserves table, row, and column shape while removing identities
  assert.match(sanitizedMetadata.password,/^test_secret_/);
  assert.ok(!JSON.stringify(sanitizedMetadata).includes('Synthetic pastoral detail'));
  assert.match(sanitizedMetadata.misc,/^test_secret_/);
+ assert.ok(!sanitizedMetadata.misc.includes('+63 919 555 0101'));
  assert.match(sanitizedMetadata.opaque,/^test_secret_/);
  assert.deepEqual(findSensitiveValues(sanitized,{denylist:['Sample Pastor','user_real_123']}),[]);
 });

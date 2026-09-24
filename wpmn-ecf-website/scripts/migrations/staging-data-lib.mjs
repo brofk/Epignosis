@@ -112,7 +112,8 @@ export function sanitizeValue(value,key='',path='root',context={dateShiftMs:731*
   .replace(JWT_RE,match=>fakeSecret(match,path))
   .replace(TOKEN_RE,match=>fakeSecret(match,path))
   .replace(AUTH_HEADER_RE,match=>fakeSecret(match,path))
-  .replace(OPAQUE_TOKEN_RE,match=>fakeSecret(match,path));
+  .replace(OPAQUE_TOKEN_RE,match=>fakeSecret(match,path))
+  .replace(PHONE_CANDIDATE_RE,match=>looksLikePhone(match)?fakePhone(match):match);
  if(scrubbed!==value)return scrubbed;
  if(ID_KEYS.test(key))return fakeIdentifier(value,path);
  // Default-deny: every string not on the structural allowlist becomes synthetic.
