@@ -12,6 +12,8 @@ Redis or Upstash must not be added as an application dependency, import, environ
 
 This direct-dependency ban applies to `dependencies`, `devDependencies`, `optionalDependencies`, and `peerDependencies`. A Redis client used by build tooling can still introduce credentials, network access, or bundled runtime code, so it requires the same dedicated review. Transitive optional peer names that appear only in a package-manager lockfile are not treated as an application integration.
 
+The guard checks dependency names and specifiers, including npm aliases. Its source scan is limited to application directories, root runtime configuration, Sites manifests, and GitHub workflow files. Documentation and ordinary test text are excluded so that mentioning Redis does not produce a false release failure. Concrete imports and recognized Redis credential names in executable or deployment files still fail the check.
+
 Any future Redis proposal requires a separate security review before code is merged. That review must establish:
 
 - the exact data stored and whether it includes sessions, identities, permissions, pastoral information, or rate limits;
