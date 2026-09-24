@@ -10,6 +10,8 @@ The `@upstash/redis` name may appear inside the lockfile because Drizzle ORM dec
 
 Redis or Upstash must not be added as an application dependency, import, environment variable, session store, cache, or rate-limit backend through an ordinary feature change. The security test fails if those signals appear.
 
+This direct-dependency ban applies to `dependencies`, `devDependencies`, `optionalDependencies`, and `peerDependencies`. A Redis client used by build tooling can still introduce credentials, network access, or bundled runtime code, so it requires the same dedicated review. Transitive optional peer names that appear only in a package-manager lockfile are not treated as an application integration.
+
 Any future Redis proposal requires a separate security review before code is merged. That review must establish:
 
 - the exact data stored and whether it includes sessions, identities, permissions, pastoral information, or rate limits;
