@@ -6,7 +6,9 @@ const PRESERVED_COLUMNS=new Map([
  ['submissions',new Set(['category','confidential','team','status'])],
  ['rate_limits',new Set(['count'])],
  ['assets',new Set(['type'])],
- ['audit_events',new Set(['action'])]
+ ['audit_events',new Set(['action'])],
+ ['write_guards',new Set(['valid'])],
+ ['settings',new Set(['version'])]
 ]);
 const TEMPORAL_KEYS=new Set([
  'expires_at','expiresAt','created_at','createdAt','updated_at','updatedAt','follow_up','followUp',
@@ -68,6 +70,20 @@ function fakePhone(value){
  return [...source].map(char=>/[0-9]/.test(char)?'0':char).join('');
 }
 
+function fakeNumber(value,path){
+ const hash=Number.parseInt(digest(`${path}:${value}`).slice(0,12),16);
+ if(Number.isInteger(value)){
+  const sign=value<0?-1:1;
+  const digits=Math.min(15,Math.max(1,String(Math.abs(value)).replace(/\D/g,'').length));
+  const floor=digits===1?0:10**(digits-1),range=10**digits-floor;
+  let result=sign*(floor+(hash%range));
+  if(result===value)result=sign*(floor+((hash+1)%range));
+  return result;
+ }
+ const result=(hash%1_000_000)/1000;
+ return result===value?result+0.001:result;
+}
+
 function maybeStructured(value,key,path,context){
  if(typeof value!=='string'||!['{','['].includes(value.trimStart()[0]))return null;
  try{
@@ -106,11 +122,13 @@ function isPreservedColumn(path,key){
 
 export function sanitizeValue(value,key='',path='root',context={dateShiftMs:731*24*60*60*1000}){
  if(TEMPORAL_KEYS.has(key))return shiftTemporal(value,context.dateShiftMs,path);
- if(value===null||typeof value==='number'||typeof value==='boolean')return value;
+ if(value===null)return value;
+ if(isPreservedColumn(path,key))return value;
+ if(typeof value==='number')return SECRET_KEYS.test(key)||PHONE_KEYS.test(key)||ID_KEYS.test(key)?0:fakeNumber(value,path);
+ if(typeof value==='boolean')return !value;
  if(Array.isArray(value))return value.map((item,index)=>sanitizeValue(item,key,`${path}[${index}]`,context));
  if(typeof value==='object')return Object.fromEntries(Object.entries(value).map(([childKey,child])=>[childKey,sanitizeValue(child,childKey,`${path}.${childKey}`,context)]));
  if(typeof value!=='string')return value;
- if(isPreservedColumn(path,key))return value;
  const structured=maybeStructured(value,key,path,context);
  if(structured!==null)return structured;
  if(SECRET_KEYS.test(key))return fakeSecret(value,path);
@@ -157,13 +175,20 @@ export function findSensitiveValues(value,{denylist=[]}={}){
  const denied=denylist.filter(Boolean).map(item=>String(item).toLowerCase());
  function visit(current,path,key=''){
   if(current===null||current===undefined)return;
-  if(Array.isArray(current)){current.forEach((item,index)=>visit(item,`${path}[${index}]`,key));return;}
+ if(Array.isArray(current)){current.forEach((item,index)=>visit(item,`${path}[${index}]`,key));return;}
   if(typeof current==='object'){for(const [childKey,child] of Object.entries(current))visit(child,`${path}.${childKey}`,childKey);return;}
+  if(typeof current==='number'){
+   if((SECRET_KEYS.test(key)||PHONE_KEYS.test(key)||ID_KEYS.test(key))&&current!==0)findings.push({path,type:'numeric-sensitive',detail:'non-synthetic numeric identity, contact, or secret value'});
+   return;
+  }
   if(typeof current!=='string')return;
   if(['{','['].includes(current.trimStart()[0])){
    try{
     const parsed=JSON.parse(current);
-    if(parsed!==null&&typeof parsed==='object')visit(parsed,`${path}.$parsed`,key);
+    if(parsed!==null&&typeof parsed==='object'){
+     visit(parsed,`${path}.$parsed`,key);
+     return;
+    }
    }catch{}
   }
   const lower=current.toLowerCase();
