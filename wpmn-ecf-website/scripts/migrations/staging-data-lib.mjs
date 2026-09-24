@@ -10,8 +10,8 @@ const TEMPORAL_KEYS=new Set([
 ]);
 const EMAIL_KEYS=/email/i;
 const PHONE_KEYS=/(phone|mobile|whatsapp|contactNumber)/i;
-const ID_KEYS=/(^id$|_id$|Id$|user|claim|owner|actor|assignee|key)/i;
-const SECRET_KEYS=/(token|secret|password|authorization|cookie|session|api.?key)/i;
+const ID_KEYS=/(^id$|_id$|Id$|user|claim|owner|actor|assignee)/i;
+const SECRET_KEYS=/(token|secret|password|authorization|cookie|session|credential|api.?key|access.?key|private.?key|client.?secret|signing.?key|(^|[_-])key($|[_-]))/i;
 const EMAIL_RE=/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi;
 const EMAIL_TEST_RE=/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i;
 const PHONE_CANDIDATE_RE=/\+?\d(?:[\d\s().-]{6,}\d)/g;
@@ -107,15 +107,16 @@ export function sanitizeValue(value,key='',path='root',context={dateShiftMs:731*
  if(SECRET_KEYS.test(key))return fakeSecret(value,path);
  if(EMAIL_KEYS.test(key)||EMAIL_TEST_RE.test(value))return fakeEmail(value,path);
  if(PHONE_KEYS.test(key))return fakePhone(value);
- if(ID_KEYS.test(key))return fakeIdentifier(value,path);
  const scrubbed=value
   .replace(EMAIL_RE,match=>fakeEmail(match,path))
   .replace(JWT_RE,match=>fakeSecret(match,path))
   .replace(TOKEN_RE,match=>fakeSecret(match,path))
   .replace(AUTH_HEADER_RE,match=>fakeSecret(match,path))
   .replace(OPAQUE_TOKEN_RE,match=>fakeSecret(match,path));
+ if(scrubbed!==value)return scrubbed;
+ if(ID_KEYS.test(key))return fakeIdentifier(value,path);
  // Default-deny: every string not on the structural allowlist becomes synthetic.
- return scrubbed===value?fakeText(value,path):scrubbed;
+ return fakeText(value,path);
 }
 
 function validateRows(table,rows){

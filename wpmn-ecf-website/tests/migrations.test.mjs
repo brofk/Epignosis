@@ -5,7 +5,7 @@ import {fileURLToPath} from 'node:url';
 import {dirname,join} from 'node:path';
 import {mkdtempSync,rmSync,writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
-import {applyMigrationFile,applyMigrations,columnNames,tableNames} from '../scripts/migrations/migration-lib.mjs';
+import {applyMigrationFile,applyMigrations,columnNames,listMigrationFiles,tableNames} from '../scripts/migrations/migration-lib.mjs';
 
 const here=dirname(fileURLToPath(import.meta.url));
 const migrations=join(here,'..','drizzle');
@@ -83,5 +83,13 @@ test('changing an already applied migration is rejected by checksum',()=>{
    writeFileSync(file,'CREATE TABLE example (id TEXT PRIMARY KEY, changed TEXT);\n');
    assert.throws(()=>applyMigrationFile(db,file),/checksum changed/);
   });
+ }finally{rmSync(directory,{recursive:true,force:true});}
+});
+
+test('migration filenames are ordered by numeric prefix rather than text order',()=>{
+ const directory=mkdtempSync(join(tmpdir(),'wpmn-order-'));
+ try{
+  for(const name of ['10_ten.sql','2_two.sql','001_one.sql','notes.txt'])writeFileSync(join(directory,name),'SELECT 1;\n');
+  assert.deepEqual(listMigrationFiles(directory).map(file=>file.slice(directory.length+1)),['001_one.sql','2_two.sql','10_ten.sql']);
  }finally{rmSync(directory,{recursive:true,force:true});}
 });

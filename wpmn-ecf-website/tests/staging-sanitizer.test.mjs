@@ -6,7 +6,7 @@ const sample={
  editors:[{user_id:'user_real_123',email:'pastor@example.com',role:'owner',created_at:'2026-09-24T00:00:00Z'}],
  claims:[{id:'claim_real_123',user_id:'user_real_123'}],
  submissions:[{
-  id:'submission_real_1',category:'prayer',payload:JSON.stringify({firstName:'Sample',email:'person@example.com',phone:'+63 917 123 4567',prayerRequest:'This is synthetic test data, not a real prayer.',credentials:{apiKey:'ordinary-value',authorization:'Bearer ordinary-value',password:'plain-value',session:'opaque-value'}}),
+  id:'submission_real_1',category:'prayer',payload:JSON.stringify({firstName:'Sample',email:'person@example.com',phone:'+63 917 123 4567',prayerRequest:'This is synthetic test data, not a real prayer.',credentials:{apiKey:'ordinary-value',access_key:'access-value',owner_key:'owner-secret-value',api_key_id:'key-id-value',authorization:'Bearer ordinary-value',password:'plain-value',session:'opaque-value'}}),
   confidential:1,team:'Pastoral Team',status:'New',assignee:'Sample Pastor',first_name:'Sample',last_name:'Person',full_name:'Sample Person',display_name:'Sample Display',given_name:'Sample Given',family_name:'Sample Family',contact_name:'Sample Contact',owner_name:'Sample Pastor',submitted_by:'Sample Submitter',created_by:'Sample Creator',updated_by:'Sample Updater',requested_by:'Sample Requester',reviewed_by:'Sample Reviewer',assigned_by:'Sample Assigner',comments_text:'Pastoral comment',unanticipated:'Personal detail',follow_up:'',response_due_at:'',notes:'Synthetic private note',tags:'["pastoral-care"]',created_at:'2026-09-24T00:00:00Z',updated_at:'2026-09-24T00:00:00Z'
  }],
  rate_limits:[{key:'ip-derived-value',count:2,expires_at:1790208000}],
@@ -46,6 +46,9 @@ test('sanitizer preserves table, row, and column shape while removing identities
  assert.notEqual(sanitized.submissions[0].assigned_by,sample.submissions[0].assigned_by);
  const sanitizedPayload=JSON.parse(sanitized.submissions[0].payload);
  assert.match(sanitizedPayload.credentials.apiKey,/^test_secret_/);
+ assert.match(sanitizedPayload.credentials.access_key,/^test_secret_/);
+ assert.match(sanitizedPayload.credentials.owner_key,/^test_secret_/);
+ assert.match(sanitizedPayload.credentials.api_key_id,/^test_secret_/);
  assert.match(sanitizedPayload.credentials.authorization,/^test_secret_/);
  assert.match(sanitizedPayload.credentials.password,/^test_secret_/);
  assert.match(sanitizedPayload.credentials.session,/^test_secret_/);
