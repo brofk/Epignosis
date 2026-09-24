@@ -7,7 +7,7 @@ const sample={
  claims:[{id:'claim_real_123',user_id:'user_real_123'}],
  submissions:[{
   id:'submission_real_1',category:'prayer',payload:JSON.stringify({firstName:'Sample',email:'person@example.com',phone:'+63 917 123 4567',prayerRequest:'This is synthetic test data, not a real prayer.',credentials:{apiKey:'ordinary-value',authorization:'Bearer ordinary-value',password:'plain-value',session:'opaque-value'}}),
-  confidential:1,team:'Pastoral Team',status:'New',assignee:'Sample Pastor',first_name:'Sample',owner_name:'Sample Pastor',comments_text:'Pastoral comment',unanticipated:'Personal detail',follow_up:'',response_due_at:'',notes:'Synthetic private note',tags:'["pastoral-care"]',created_at:'2026-09-24T00:00:00Z',updated_at:'2026-09-24T00:00:00Z'
+  confidential:1,team:'Pastoral Team',status:'New',assignee:'Sample Pastor',first_name:'Sample',last_name:'Person',full_name:'Sample Person',contact_name:'Sample Contact',owner_name:'Sample Pastor',submitted_by:'Sample Submitter',created_by:'Sample Creator',comments_text:'Pastoral comment',unanticipated:'Personal detail',follow_up:'',response_due_at:'',notes:'Synthetic private note',tags:'["pastoral-care"]',created_at:'2026-09-24T00:00:00Z',updated_at:'2026-09-24T00:00:00Z'
  }],
  rate_limits:[{key:'ip-derived-value',count:2,expires_at:1790208000}],
  records:[{id:'record_real_1',kind:'article',title:'Synthetic Article',slug:'synthetic-article',status:'draft',data:JSON.stringify({summary:'Contact person@example.com for the synthetic example.'}),metadata:JSON.stringify({contact:'alternate@example.com',phone:'+63 918 765 4321',password:'alternate-plain-value',pastoralNote:'Synthetic pastoral detail',misc:'Bearer abcDEF1234567890',opaque:'Abcdefghijklmnopqrstuvwxyz1234567890'}),version:1,updated_at:'2026-09-24T00:00:00Z'}]
@@ -26,7 +26,12 @@ test('sanitizer preserves table, row, and column shape while removing identities
  assert.ok(!JSON.stringify(sanitized).includes('Pastoral comment'));
  assert.ok(!JSON.stringify(sanitized).includes('Personal detail'));
  assert.notEqual(sanitized.submissions[0].first_name,sample.submissions[0].first_name);
+ assert.notEqual(sanitized.submissions[0].last_name,sample.submissions[0].last_name);
+ assert.notEqual(sanitized.submissions[0].full_name,sample.submissions[0].full_name);
+ assert.notEqual(sanitized.submissions[0].contact_name,sample.submissions[0].contact_name);
  assert.notEqual(sanitized.submissions[0].owner_name,sample.submissions[0].owner_name);
+ assert.notEqual(sanitized.submissions[0].submitted_by,sample.submissions[0].submitted_by);
+ assert.notEqual(sanitized.submissions[0].created_by,sample.submissions[0].created_by);
  const sanitizedPayload=JSON.parse(sanitized.submissions[0].payload);
  assert.match(sanitizedPayload.credentials.apiKey,/^test_secret_/);
  assert.match(sanitizedPayload.credentials.authorization,/^test_secret_/);
