@@ -1,4 +1,4 @@
-import {readFileSync,readdirSync} from 'node:fs';
+import {existsSync,readFileSync,readdirSync} from 'node:fs';
 import {relative,resolve} from 'node:path';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
@@ -6,16 +6,23 @@ import assert from 'node:assert/strict';
 const root=process.cwd();
 const packageJson=JSON.parse(readFileSync(new URL('../package.json',import.meta.url),'utf8'));
 const dependencySections=['dependencies','devDependencies','optionalDependencies','peerDependencies'];
-const directPackages=dependencySections.flatMap(section=>Object.keys(packageJson[section]??{}));
-const redisPackage=/redis|upstash/i;
-const redisSource=/(?:@upstash\/redis|\bioredis\b|(?:from|require\s*\()\s*['"]redis['"]|\bcreateClient\s*\(|\b(?:UPSTASH_REDIS_REST_URL|UPSTASH_REDIS_REST_TOKEN|REDIS_URL|REDIS_TLS_URL|REDIS_HOST|REDIS_PASSWORD|REDIS_TOKEN|KV_REST_API_URL|KV_REST_API_TOKEN)\b)/;
+const directPackages=dependencySections.flatMap(section=>Object.entries(packageJson[section]??{}).map(([name,specifier])=>`${section}:${name}:${specifier}`));
+const redisPackage=/(?:^|[\/:@-])(?:ioredis|redis|upstash)(?:$|[\/:@-])/i;
+const redisSource=/(?:@upstash\/redis|(?:from|require\s*\()\s*['"](?:ioredis|redis)['"]|\b(?:UPSTASH_REDIS_REST_URL|UPSTASH_REDIS_REST_TOKEN|REDIS_URL|REDIS_TLS_URL|REDIS_HOST|REDIS_PASSWORD|REDIS_TOKEN|KV_REST_API_URL|KV_REST_API_TOKEN)\b)/;
 const excludedDirectories=new Set(['.git','.next','.sites-runtime','.turbo','.wrangler','coverage','dist','node_modules']);
 const excludedFiles=new Set(['pnpm-lock.yaml','package-lock.json','yarn.lock','SECURITY_ARCHITECTURE.md','redis-architecture.test.mjs']);
 const reviewedFile=/\.(?:cjs|env|js|json|jsx|mjs|sh|toml|ts|tsx|yaml|yml)$/i;
+const runtimeLocations=['app','api','components','lib','pages','scripts','server','src','workers','.openai'];
+const deploymentLocations=[resolve(root,'..','.github','workflows')];
+const rootConfiguration=['.env','.env.example','next.config.js','next.config.mjs','next.config.ts','wrangler.json','wrangler.jsonc','wrangler.toml'];
 
 test('Redis or Upstash cannot enter the runtime without a dedicated security review',()=>{
   const packages=directPackages.filter(name=>redisPackage.test(name));
-  const sourceFiles=walk(root);
+  const sourceFiles=[
+    ...runtimeLocations.map(location=>resolve(root,location)).filter(existsSync).flatMap(walk),
+    ...deploymentLocations.filter(existsSync).flatMap(walk),
+    ...rootConfiguration.map(file=>resolve(root,file)).filter(existsSync),
+  ];
   const sourceSignals=sourceFiles
     .filter(file=>redisSource.test(readFileSync(file,'utf8')))
     .map(file=>relative(root,file));
