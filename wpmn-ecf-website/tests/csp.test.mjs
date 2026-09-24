@@ -8,12 +8,22 @@ test('protected path variations receive the sensitive policy', () => {
   const paths = [
     '/editor', '/editor/', '//editor', '/%65ditor', '/%2565ditor',
     '/api/editor', '/api/editor/export', '/api//editor/export',
-    '/api/%65ditor', '/api/%2565ditor', '/api/upload', '/prefix/api/editor',
+    '/api/%65ditor', '/api/%2565ditor', '/api%2Feditor', '/api%252Feditor',
+    '/api/upload', '/api%2Fupload', '/prefix/api/editor',
     '/signin-with-chatgpt', '/signout-with-chatgpt', '/callback',
   ];
   for (const path of paths) {
     assert.equal(isSensitivePath(path), true, path);
     assert.match(contentSecurityPolicy('testnonce', path), /frame-src 'none'/);
+  }
+});
+
+
+test('similar public paths do not receive sensitive-page framing rules', () => {
+  const paths = ['/editorial', '/api/content', '/api/assets/editor-image', '/media/api-editor-overview'];
+  for (const path of paths) {
+    assert.equal(isSensitivePath(path), false, path);
+    assert.match(contentSecurityPolicy('testnonce', path), /frame-src https:\/\/www\.youtube-nocookie\.com/);
   }
 });
 
