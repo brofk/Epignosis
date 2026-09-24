@@ -84,18 +84,26 @@ export function sanitizeValue(value,key='',path='root'){
  if(PHONE_KEYS.test(key))return fakePhone(value);
  if(ID_KEYS.test(key))return fakeIdentifier(value,path);
  if(FREE_TEXT_KEYS.test(key))return fakeText(value,path);
- return value
+ const scrubbed=value
   .replace(EMAIL_RE,match=>fakeEmail(match,path))
   .replace(JWT_RE,match=>fakeSecret(match,path))
   .replace(TOKEN_RE,match=>fakeSecret(match,path))
   .replace(AUTH_HEADER_RE,match=>fakeSecret(match,path))
   .replace(OPAQUE_TOKEN_RE,match=>fakeSecret(match,path));
+ return scrubbed===value?fakeText(value,path):scrubbed;
+}
+
+function validateRows(table,rows){
+ if(!Array.isArray(rows))throw new Error(`Table ${table} must contain an array of rows`);
+ rows.forEach((row,index)=>{
+  if(row===null||typeof row!=='object'||Array.isArray(row))throw new Error(`Table ${table} row ${index} must be an object`);
+ });
 }
 
 export function sanitizeDataset(dataset){
  if(!dataset||typeof dataset!=='object'||Array.isArray(dataset))throw new Error('Dataset must be an object keyed by table name');
  return Object.fromEntries(Object.entries(dataset).map(([table,rows])=>{
-  if(!Array.isArray(rows))throw new Error(`Table ${table} must contain an array of rows`);
+  validateRows(table,rows);
   return [table,rows.map((row,index)=>sanitizeValue(row,table,`${table}[${index}]`))];
  }));
 }
@@ -139,8 +147,8 @@ export function findSensitiveValues(value,{denylist=[]}={}){
 }
 
 export function datasetShape(dataset){
- return Object.fromEntries(Object.entries(dataset).map(([table,rows])=>[table,{
-  rows:rows.length,
-  keys:[...new Set(rows.flatMap(row=>Object.keys(row)))].sort()
- }]));
+ return Object.fromEntries(Object.entries(dataset).map(([table,rows])=>{
+  validateRows(table,rows);
+  return [table,{rows:rows.length,keys:[...new Set(rows.flatMap(row=>Object.keys(row)))].sort()}];
+ }));
 }
