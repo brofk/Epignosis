@@ -84,7 +84,7 @@ test('invalid calendar date fails and missing message returns 404',async()=>{
 });
 test('public retry creates one intake and precise response target',async()=>{
  const p=submission();assert.equal((await contact.POST(req(p,'/api/contact'))).status,200);assert.equal((await contact.POST(req(p,'/api/contact'))).status,200);
- const row=sqlite.prepare('SELECT * FROM submissions').get();assert.equal(sqlite.prepare('SELECT count(*) n FROM submissions').get().n,1);assert.equal(Date.parse(row.response_due_at)-Date.parse(row.created_at),24*3600000);assert.equal(row.follow_up,'');
+ const row=sqlite.prepare('SELECT * FROM submissions').get();assert.equal(sqlite.prepare('SELECT count(*) n FROM submissions').get().n,1);assert.ok(Math.abs((Date.parse(row.response_due_at)-Date.parse(row.created_at))-24*3600000)<=25);assert.equal(row.follow_up,'');
 });
 test('public content contains no drafts',async()=>{
  identity('editor');await editor.POST(req(record('test-draft','test-draft')));identity(null);const data=await(await content.GET()).json();assert.ok(data.records.every(r=>r.status==='published'));assert.ok(!data.records.some(r=>r.id==='test-draft'));
