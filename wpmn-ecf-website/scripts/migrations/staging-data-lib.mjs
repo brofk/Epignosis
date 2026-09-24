@@ -45,6 +45,10 @@ function fakeIdentifier(value,path){
  return (prefix+fit(`${path}:${source}`,Math.max(1,source.length-prefix.length))).slice(0,source.length);
 }
 
+function fakeSecret(value,path){
+ return `test_secret_${digest(`${path}:${value}`).slice(0,16)}`;
+}
+
 function fakeEmail(value,path){
  const source=String(value);
  const candidate=`user-${digest(`${path}:${source}`).slice(0,10)}@example.invalid`;
@@ -69,7 +73,7 @@ export function sanitizeValue(value,key='',path='root'){
  if(PRESERVED_KEYS.has(key))return value;
  const structured=maybeStructured(value,key,path);
  if(structured!==null)return structured;
- if(SECRET_KEYS.test(key))return fakeIdentifier(value,path);
+ if(SECRET_KEYS.test(key))return fakeSecret(value,path);
  if(EMAIL_KEYS.test(key)||EMAIL_TEST_RE.test(value))return fakeEmail(value,path);
  if(PHONE_KEYS.test(key))return fakePhone(value);
  if(ID_KEYS.test(key))return fakeIdentifier(value,path);
@@ -105,6 +109,7 @@ export function findSensitiveValues(value,{denylist=[]}={}){
   }
   const lower=current.toLowerCase();
   for(const term of denied)if(lower.includes(term))findings.push({path,type:'denylist',detail:term});
+  if(SECRET_KEYS.test(key)&&!current.startsWith('test_secret_'))findings.push({path,type:'secret-field',detail:'non-synthetic value under a secret-bearing key'});
   for(const match of current.matchAll(EMAIL_RE))if(!match[0].toLowerCase().endsWith('@example.invalid'))findings.push({path,type:'email',detail:match[0]});
   EMAIL_RE.lastIndex=0;
   for(const match of current.matchAll(PHONE_CANDIDATE_RE))if(looksLikePhone(match[0]))findings.push({path,type:'phone',detail:'phone-like value'});
