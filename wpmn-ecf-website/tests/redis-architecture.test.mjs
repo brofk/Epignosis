@@ -5,7 +5,8 @@ import assert from 'node:assert/strict';
 
 const root=process.cwd();
 const packageJson=JSON.parse(readFileSync(new URL('../package.json',import.meta.url),'utf8'));
-const runtimePackages=packageJson.dependencies??{};
+const dependencySections=['dependencies','devDependencies','optionalDependencies','peerDependencies'];
+const directPackages=dependencySections.flatMap(section=>Object.keys(packageJson[section]??{}));
 const redisPackage=/redis|upstash/i;
 const redisSource=/(?:@upstash\/redis|\bioredis\b|(?:from|require\s*\()\s*['"]redis['"]|\bcreateClient\s*\(|\b(?:UPSTASH_REDIS_REST_URL|UPSTASH_REDIS_REST_TOKEN|REDIS_URL|REDIS_TLS_URL|REDIS_HOST|REDIS_PASSWORD|REDIS_TOKEN|KV_REST_API_URL|KV_REST_API_TOKEN)\b)/;
 const excludedDirectories=new Set(['.git','.next','.sites-runtime','.turbo','.wrangler','coverage','dist','node_modules']);
@@ -13,13 +14,13 @@ const excludedFiles=new Set(['pnpm-lock.yaml','package-lock.json','yarn.lock','S
 const reviewedFile=/\.(?:cjs|env|js|json|jsx|mjs|sh|toml|ts|tsx|yaml|yml)$/i;
 
 test('Redis or Upstash cannot enter the runtime without a dedicated security review',()=>{
-  const packages=Object.keys(runtimePackages).filter(name=>redisPackage.test(name));
+  const packages=directPackages.filter(name=>redisPackage.test(name));
   const sourceFiles=walk(root);
   const sourceSignals=sourceFiles
     .filter(file=>redisSource.test(readFileSync(file,'utf8')))
     .map(file=>relative(root,file));
 
-  assert.deepEqual(packages,[],securityMessage('runtime packages',packages));
+  assert.deepEqual(packages,[],securityMessage('direct package references',packages));
   assert.deepEqual(sourceSignals,[],securityMessage('source or environment references',sourceSignals));
 });
 
