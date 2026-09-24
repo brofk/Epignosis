@@ -1,8 +1,12 @@
 import {createHash} from 'node:crypto';
 
-const PRESERVED_KEYS=new Set([
- 'category','confidential','team','status','kind','role','type','version','count',
- 'campus','published'
+const PRESERVED_COLUMNS=new Map([
+ ['records',new Set(['kind','status','version'])],
+ ['editors',new Set(['role'])],
+ ['submissions',new Set(['category','confidential','team','status'])],
+ ['rate_limits',new Set(['count'])],
+ ['assets',new Set(['type'])],
+ ['audit_events',new Set(['action'])]
 ]);
 const TEMPORAL_KEYS=new Set([
  'expires_at','expiresAt','created_at','createdAt','updated_at','updatedAt','follow_up','followUp',
@@ -95,13 +99,18 @@ function contextFor(dataset){
  return {dateShiftMs:days*24*60*60*1000};
 }
 
+function isPreservedColumn(path,key){
+ const match=path.match(/^([a-z_][a-z0-9_]*)\[\d+\]\.([a-zA-Z_][a-zA-Z0-9_]*)$/);
+ return Boolean(match&&match[2]===key&&PRESERVED_COLUMNS.get(match[1])?.has(key));
+}
+
 export function sanitizeValue(value,key='',path='root',context={dateShiftMs:731*24*60*60*1000}){
  if(TEMPORAL_KEYS.has(key))return shiftTemporal(value,context.dateShiftMs,path);
  if(value===null||typeof value==='number'||typeof value==='boolean')return value;
  if(Array.isArray(value))return value.map((item,index)=>sanitizeValue(item,key,`${path}[${index}]`,context));
  if(typeof value==='object')return Object.fromEntries(Object.entries(value).map(([childKey,child])=>[childKey,sanitizeValue(child,childKey,`${path}.${childKey}`,context)]));
  if(typeof value!=='string')return value;
- if(PRESERVED_KEYS.has(key))return value;
+ if(isPreservedColumn(path,key))return value;
  const structured=maybeStructured(value,key,path,context);
  if(structured!==null)return structured;
  if(SECRET_KEYS.test(key))return fakeSecret(value,path);
