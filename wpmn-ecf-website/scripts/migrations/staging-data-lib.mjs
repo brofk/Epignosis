@@ -1,9 +1,12 @@
 import {createHash} from 'node:crypto';
 
 const PRESERVED_KEYS=new Set([
- 'category','confidential','team','status','kind','role','type','version','count','expires_at',
- 'expiresAt','created_at','createdAt','updated_at','updatedAt','follow_up','followUp',
- 'response_due_at','responseDueAt','campus','published','date'
+ 'category','confidential','team','status','kind','role','type','version','count',
+ 'campus','published'
+]);
+const TEMPORAL_KEYS=new Set([
+ 'expires_at','expiresAt','created_at','createdAt','updated_at','updatedAt','follow_up','followUp',
+ 'response_due_at','responseDueAt','date','event_date','eventDate','scheduled_at','scheduledAt','due_at','dueAt'
 ]);
 const EMAIL_KEYS=/email/i;
 const PHONE_KEYS=/(phone|mobile|whatsapp|contactNumber)/i;
@@ -61,22 +64,45 @@ function fakePhone(value){
  return [...source].map(char=>/[0-9]/.test(char)?'0':char).join('');
 }
 
-function maybeStructured(value,key,path){
+function maybeStructured(value,key,path,context){
  if(typeof value!=='string'||!['{','['].includes(value.trimStart()[0]))return null;
  try{
   const parsed=JSON.parse(value);
   if(parsed===null||typeof parsed!=='object')return null;
-  return JSON.stringify(sanitizeValue(parsed,key,path));
+  return JSON.stringify(sanitizeValue(parsed,key,path,context));
  }catch{return null;}
 }
 
-export function sanitizeValue(value,key='',path='root'){
+function shiftTemporal(value,shiftMs,path){
+ if(value===null||value==='')return value;
+ if(typeof value==='number'){
+  const milliseconds=Math.abs(value)<1e12?value*1000:value;
+  const shifted=milliseconds+shiftMs;
+  return Math.abs(value)<1e12?Math.trunc(shifted/1000):Math.trunc(shifted);
+ }
+ if(typeof value!=='string')return value;
+ if(/^\d+$/.test(value))return String(shiftTemporal(Number(value),shiftMs,path));
+ const parsed=Date.parse(value);
+ if(!Number.isFinite(parsed))return fakeText(value,path);
+ const shifted=new Date(parsed+shiftMs);
+ if(/^\d{4}-\d{2}-\d{2}$/.test(value))return shifted.toISOString().slice(0,10);
+ const iso=shifted.toISOString();
+ return value.includes('.')?iso:iso.replace('.000Z','Z');
+}
+
+function contextFor(dataset){
+ const days=180+(Number.parseInt(digest(JSON.stringify(dataset)).slice(0,8),16)%1460);
+ return {dateShiftMs:days*24*60*60*1000};
+}
+
+export function sanitizeValue(value,key='',path='root',context={dateShiftMs:731*24*60*60*1000}){
+ if(TEMPORAL_KEYS.has(key))return shiftTemporal(value,context.dateShiftMs,path);
  if(value===null||typeof value==='number'||typeof value==='boolean')return value;
- if(Array.isArray(value))return value.map((item,index)=>sanitizeValue(item,key,`${path}[${index}]`));
- if(typeof value==='object')return Object.fromEntries(Object.entries(value).map(([childKey,child])=>[childKey,sanitizeValue(child,childKey,`${path}.${childKey}`)]));
+ if(Array.isArray(value))return value.map((item,index)=>sanitizeValue(item,key,`${path}[${index}]`,context));
+ if(typeof value==='object')return Object.fromEntries(Object.entries(value).map(([childKey,child])=>[childKey,sanitizeValue(child,childKey,`${path}.${childKey}`,context)]));
  if(typeof value!=='string')return value;
  if(PRESERVED_KEYS.has(key))return value;
- const structured=maybeStructured(value,key,path);
+ const structured=maybeStructured(value,key,path,context);
  if(structured!==null)return structured;
  if(SECRET_KEYS.test(key))return fakeSecret(value,path);
  if(EMAIL_KEYS.test(key)||EMAIL_TEST_RE.test(value))return fakeEmail(value,path);
@@ -101,9 +127,10 @@ function validateRows(table,rows){
 
 export function sanitizeDataset(dataset){
  if(!dataset||typeof dataset!=='object'||Array.isArray(dataset))throw new Error('Dataset must be an object keyed by table name');
+ const context=contextFor(dataset);
  return Object.fromEntries(Object.entries(dataset).map(([table,rows])=>{
   validateRows(table,rows);
-  return [table,rows.map((row,index)=>sanitizeValue(row,table,`${table}[${index}]`))];
+  return [table,rows.map((row,index)=>sanitizeValue(row,table,`${table}[${index}]`,context))];
  }));
 }
 

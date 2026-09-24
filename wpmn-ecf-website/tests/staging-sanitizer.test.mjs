@@ -18,6 +18,11 @@ test('sanitizer preserves table, row, and column shape while removing identities
  assert.deepEqual(datasetShape(sanitized),datasetShape(sample));
  assert.equal(sanitized.submissions[0].category,'prayer');
  assert.equal(sanitized.submissions[0].confidential,1);
+ assert.notEqual(sanitized.submissions[0].created_at,sample.submissions[0].created_at);
+ assert.notEqual(sanitized.submissions[0].updated_at,sample.submissions[0].updated_at);
+ assert.equal(sanitized.submissions[0].created_at,sanitized.submissions[0].updated_at);
+ assert.match(sanitized.submissions[0].created_at,/^\d{4}-\d{2}-\d{2}T/);
+ assert.notEqual(sanitized.rate_limits[0].expires_at,sample.rate_limits[0].expires_at);
  assert.notEqual(sanitized.editors[0].user_id,sample.editors[0].user_id);
  assert.match(sanitized.editors[0].email,/@example\.invalid$/);
  assert.ok(!JSON.stringify(sanitized).includes('person@example.com'));
@@ -55,6 +60,19 @@ test('sanitizer preserves table, row, and column shape while removing identities
  assert.match(sanitizedMetadata.misc,/^test_secret_/);
  assert.match(sanitizedMetadata.opaque,/^test_secret_/);
  assert.deepEqual(findSensitiveValues(sanitized,{denylist:['Sample Pastor','user_real_123']}),[]);
+});
+
+test('date shifting is deterministic and preserves ordering',()=>{
+ const dated={rows:[
+  {id:'one',created_at:'2026-01-01T00:00:00Z',date:'2026-01-01'},
+  {id:'two',created_at:'2026-01-03T00:00:00Z',date:'2026-01-03'}
+ ]};
+ const first=sanitizeDataset(dated);
+ const second=sanitizeDataset(dated);
+ assert.deepEqual(first,second);
+ assert.notEqual(first.rows[0].created_at,dated.rows[0].created_at);
+ assert.equal(Date.parse(first.rows[1].created_at)-Date.parse(first.rows[0].created_at),2*24*60*60*1000);
+ assert.equal(Date.parse(`${first.rows[1].date}T00:00:00Z`)-Date.parse(`${first.rows[0].date}T00:00:00Z`),2*24*60*60*1000);
 });
 
 test('leak scanner rejects unsanitized email, phone, token, and denylisted values',()=>{
