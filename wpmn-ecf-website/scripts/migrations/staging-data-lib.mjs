@@ -221,7 +221,7 @@ export function findSensitiveValues(value,{denylist=[]}={}){
   for(const term of denied)if(lower.includes(term))findings.push({path,type:'denylist',detail:term});
   if((SECRET_KEYS.test(key)||isAuthCodeKey(key))&&!current.startsWith('test_secret_'))findings.push({path,type:'secret-field',detail:'non-synthetic value under a secret-bearing key'});
   if(NAME_KEYS.test(key)&&!current.startsWith('test_person_'))findings.push({path,type:'identity-field',detail:'non-synthetic value under an identity-bearing key'});
-  const scanText=current.replace(/test_secret_[a-f0-9]+/gi,'').replace(/test_person_[a-f0-9]+/gi,'');
+  const scanText=current.replace(/test_(?:secret|person|value)_[a-f0-9]+/gi,'');
   for(const match of scanText.matchAll(EMAIL_RE))if(!match[0].toLowerCase().endsWith('@example.invalid'))findings.push({path,type:'email',detail:match[0]});
   EMAIL_RE.lastIndex=0;
   for(const match of scanText.matchAll(PHONE_CANDIDATE_RE))if(looksLikePhone(match[0]))findings.push({path,type:'phone',detail:'phone-like value'});
