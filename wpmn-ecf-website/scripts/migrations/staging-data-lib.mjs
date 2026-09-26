@@ -159,7 +159,7 @@ export function sanitizeValue(value,key='',path='root',context={dateShiftMs:731*
  if(value===null)return value;
  if(isPreservedColumn(path,key,value))return value;
  if(typeof value==='number')return SECRET_KEYS.test(key)||PHONE_KEYS.test(key)||ID_KEYS.test(key)||NAME_KEYS.test(key)||isAuthCodeKey(key)||looksLikeNumericPhone(value,key)?0:fakeNumber(value,path);
- if(typeof value==='boolean')return !value;
+ if(typeof value==='boolean')return value;
  if(Array.isArray(value))return value.map((item,index)=>sanitizeValue(item,key,`${path}[${index}]`,context));
  if(typeof value==='object')return Object.fromEntries(Object.entries(value).map(([childKey,child])=>[childKey,sanitizeValue(child,childKey,`${path}.${childKey}`,context)]));
  if(typeof value!=='string')return value;

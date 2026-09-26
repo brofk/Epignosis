@@ -58,7 +58,7 @@ test('sanitizer preserves table, row, and column shape while removing identities
  assert.notEqual(sanitizedPayload.editor_id,'editor-real-1');
  assert.notEqual(sanitizedPayload.owner_id,'owner-real-1');
  assert.notEqual(sanitizedPayload.relatedRecordId,'related-real-1');
- assert.equal(sanitizedPayload.consent,false);
+ assert.equal(sanitizedPayload.consent,true);
  assert.ok(!JSON.stringify(sanitizedPayload).includes('ordinary-value'));
  assert.ok(!JSON.stringify(sanitizedPayload).includes('plain-value'));
  assert.ok(!JSON.stringify(sanitizedPayload).includes('opaque-value'));

@@ -101,6 +101,15 @@ test('migration files cannot control the runner transaction',()=>{
  }finally{rmSync(directory,{recursive:true,force:true});}
 });
 
+test('migration runner rejects SQL that cannot use its safety transaction',()=>{
+ const directory=mkdtempSync(join(tmpdir(),'wpmn-nontransactional-'));
+ const file=join(directory,'0001_vacuum.sql');
+ try{
+  writeFileSync(file,'VACUUM;\n');
+  withDatabase(db=>assert.throws(()=>applyMigrationFile(db,file),/unsupported by the transaction-safe harness/));
+ }finally{rmSync(directory,{recursive:true,force:true});}
+});
+
 test('migration filenames are ordered by numeric prefix rather than text order',()=>{
  const directory=mkdtempSync(join(tmpdir(),'wpmn-order-'));
  try{

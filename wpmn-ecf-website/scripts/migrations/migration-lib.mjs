@@ -41,6 +41,8 @@ export function applyMigrationFile(db,file){
  const statements=splitMigration(sql);
  const transactionControl=/^(?:BEGIN|COMMIT|END|ROLLBACK|SAVEPOINT|RELEASE)\b/i;
  if(statements.some(statement=>transactionControl.test(statement)))throw new Error(`Migration must not contain transaction-control SQL: ${name}`);
+ const nonTransactional=/^(?:VACUUM\b|ATTACH\b|DETACH\b|PRAGMA\s+(?:journal_mode|wal_checkpoint)\b)/i;
+ if(statements.some(statement=>nonTransactional.test(statement)))throw new Error(`Migration uses SQL unsupported by the transaction-safe harness: ${name}`);
  const applied=appliedMigrations(db);
  if(applied.has(name)){
   if(applied.get(name)!==checksum)throw new Error(`Applied migration checksum changed: ${name}`);
