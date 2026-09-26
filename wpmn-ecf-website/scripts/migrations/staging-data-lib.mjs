@@ -10,9 +10,18 @@ const PRESERVED_COLUMNS=new Map([
  ['write_guards',new Set(['valid'])],
  ['settings',new Set(['version'])]
 ]);
-const SUPPORTED_TABLES=new Set([
- 'assets','audit_events','claims','editors','rate_limits','records','settings','submissions','write_guards'
+const REVIEWED_COLUMNS=new Map([
+ ['assets',new Set(['id','name','type','owner','created_at'])],
+ ['audit_events',new Set(['id','actor','action','target','created_at'])],
+ ['claims',new Set(['id','user_id'])],
+ ['editors',new Set(['user_id','email','role','created_at'])],
+ ['rate_limits',new Set(['key','count','expires_at'])],
+ ['records',new Set(['id','kind','title','slug','status','data','version','updated_at'])],
+ ['settings',new Set(['key','value','version','updated_at'])],
+ ['submissions',new Set(['id','category','payload','confidential','team','status','assignee','follow_up','response_due_at','notes','tags','created_at','updated_at'])],
+ ['write_guards',new Set(['id','valid'])]
 ]);
+const SUPPORTED_TABLES=new Set(REVIEWED_COLUMNS.keys());
 const TEMPORAL_KEYS=new Set([
  'expires_at','expiresAt','created_at','createdAt','updated_at','updatedAt','follow_up','followUp',
  'response_due_at','responseDueAt','date','event_date','eventDate','scheduled_at','scheduledAt','due_at','dueAt'
@@ -173,6 +182,8 @@ function validateRows(table,rows){
  if(!Array.isArray(rows))throw new Error(`Table ${table} must contain an array of rows`);
  rows.forEach((row,index)=>{
   if(row===null||typeof row!=='object'||Array.isArray(row))throw new Error(`Table ${table} row ${index} must be an object`);
+  const unexpected=Object.keys(row).filter(column=>!REVIEWED_COLUMNS.get(table)?.has(column));
+  if(unexpected.length)throw new Error(`Unsupported column(s) in ${table}: ${unexpected.sort().join(', ')}. Review the schema and sanitizer before adding a column.`);
  });
 }
 

@@ -6,8 +6,8 @@ const sample={
  editors:[{user_id:'user_real_123',email:'pastor@example.com',role:'owner',created_at:'2026-09-24T00:00:00Z'}],
  claims:[{id:'claim_real_123',user_id:'user_real_123'}],
  submissions:[{
-  id:'submission_real_1',category:'prayer',payload:JSON.stringify({firstName:'Sample',email:'person@example.com',phone:639171234567,contactValue:639181112222,otp:123456,pin:4321,verificationCode:654321,recovery_code:246810,mfaCode:135790,authCode:111222,user_id:987654,record_id:'record-real-1',submission_id:'submission-real-1',editor_id:'editor-real-1',owner_id:'owner-real-1',relatedRecordId:'related-real-1',consent:true,prayerRequest:'This is synthetic test data, not a real prayer.',status:'Pastoral crisis involving person',role:'Named family member',category:'Private care detail',team:'Specific care relationship',credentials:{apiKey:'ordinary-value',access_key:'access-value',owner_key:'owner-secret-value',api_key_id:'key-id-value',authorization:'Bearer ordinary-value',password:'plain-value',session:'opaque-value'}}),
-  confidential:1,team:'Pastoral Team',status:'New',assignee:'Sample Pastor',first_name:'Sample',last_name:'Person',full_name:'Sample Person',display_name:'Sample Display',given_name:'Sample Given',family_name:'Sample Family',contact_name:'Sample Contact',owner_name:'Sample Pastor',submitted_by:'Sample Submitter',created_by:'Sample Creator',updated_by:'Sample Updater',requested_by:'Sample Requester',reviewed_by:'Sample Reviewer',assigned_by:'Sample Assigner',comments_text:'Pastoral comment',unanticipated:'Personal detail',follow_up:'',response_due_at:'',notes:'Synthetic private note',tags:'["pastoral-care"]',created_at:'2026-09-24T00:00:00Z',updated_at:'2026-09-24T00:00:00Z'
+  id:'submission_real_1',category:'prayer',payload:JSON.stringify({firstName:'Sample',first_name:'Sample',last_name:'Person',full_name:'Sample Person',display_name:'Sample Display',given_name:'Sample Given',family_name:'Sample Family',contact_name:'Sample Contact',owner_name:'Sample Pastor',submitted_by:'Sample Submitter',created_by:'Sample Creator',updated_by:'Sample Updater',requested_by:'Sample Requester',reviewed_by:'Sample Reviewer',assigned_by:'Sample Assigner',comments_text:'Pastoral comment',unanticipated:'Personal detail',email:'person@example.com',phone:639171234567,contactValue:639181112222,otp:123456,pin:4321,verificationCode:654321,recovery_code:246810,mfaCode:135790,authCode:111222,user_id:987654,record_id:'record-real-1',submission_id:'submission-real-1',editor_id:'editor-real-1',owner_id:'owner-real-1',relatedRecordId:'related-real-1',consent:true,prayerRequest:'This is synthetic test data, not a real prayer.',status:'Pastoral crisis involving person',role:'Named family member',category:'Private care detail',team:'Specific care relationship',credentials:{apiKey:'ordinary-value',access_key:'access-value',owner_key:'owner-secret-value',api_key_id:'key-id-value',authorization:'Bearer ordinary-value',password:'plain-value',session:'opaque-value'}}),
+  confidential:1,team:'Pastoral Team',status:'New',assignee:'Sample Pastor',follow_up:'',response_due_at:'',notes:'Synthetic private note',tags:'["pastoral-care"]',created_at:'2026-09-24T00:00:00Z',updated_at:'2026-09-24T00:00:00Z'
  }],
  rate_limits:[{key:'ip-derived-value',count:2,expires_at:1790208000}],
  records:[{id:'record_real_1',kind:'article',title:'Synthetic Article',slug:'synthetic-article',status:'draft',data:JSON.stringify({summary:'Contact person@example.com for the synthetic example.'}),metadata:JSON.stringify({contact:'alternate@example.com',phone:'+63 918 765 4321',password:'alternate-plain-value',pastoralNote:'Synthetic pastoral detail',misc:'Bearer abcDEF1234567890 then call +63 919 555 0101',opaque:'Abcdefghijklmnopqrstuvwxyz1234567890'}),version:1,updated_at:'2026-09-24T00:00:00Z'}]
@@ -31,22 +31,8 @@ test('sanitizer preserves table, row, and column shape while removing identities
  assert.ok(!JSON.stringify(sanitized).includes('Synthetic private note'));
  assert.ok(!JSON.stringify(sanitized).includes('Pastoral comment'));
  assert.ok(!JSON.stringify(sanitized).includes('Personal detail'));
- assert.match(sanitized.submissions[0].first_name,/^test_person_/);
- assert.match(sanitized.submissions[0].last_name,/^test_person_/);
- assert.match(sanitized.submissions[0].full_name,/^test_person_/);
- assert.match(sanitized.submissions[0].display_name,/^test_person_/);
- assert.match(sanitized.submissions[0].given_name,/^test_person_/);
- assert.match(sanitized.submissions[0].family_name,/^test_person_/);
- assert.match(sanitized.submissions[0].contact_name,/^test_person_/);
- assert.match(sanitized.submissions[0].owner_name,/^test_person_/);
- assert.match(sanitized.submissions[0].submitted_by,/^test_person_/);
- assert.match(sanitized.submissions[0].created_by,/^test_person_/);
- assert.match(sanitized.submissions[0].updated_by,/^test_person_/);
- assert.match(sanitized.submissions[0].requested_by,/^test_person_/);
- assert.match(sanitized.submissions[0].reviewed_by,/^test_person_/);
- assert.match(sanitized.submissions[0].assigned_by,/^test_person_/);
  const sanitizedPayload=JSON.parse(sanitized.submissions[0].payload);
- assert.match(sanitizedPayload.firstName,/^test_person_/);
+ for(const key of ['firstName','first_name','last_name','full_name','display_name','given_name','family_name','contact_name','owner_name','submitted_by','created_by','updated_by','requested_by','reviewed_by','assigned_by'])assert.match(sanitizedPayload[key],/^test_person_/);
  assert.match(sanitizedPayload.credentials.apiKey,/^test_secret_/);
  assert.match(sanitizedPayload.credentials.access_key,/^test_secret_/);
  assert.match(sanitizedPayload.credentials.owner_key,/^test_secret_/);
@@ -112,4 +98,5 @@ test('sanitizer rejects a malformed table export',()=>{
  assert.throws(()=>sanitizeDataset({submissions:['not-an-object']}),/Table submissions row 0 must be an object/);
  assert.throws(()=>datasetShape({submissions:[42]}),/Table submissions row 0 must be an object/);
  assert.throws(()=>sanitizeDataset({pastoral_secrets:[{id:'one'}]}),/Unsupported table\(s\): pastoral_secrets/);
+ assert.throws(()=>sanitizeDataset({submissions:[{id:'one',owner_email:'private@example.com'}]}),/Unsupported column\(s\) in submissions: owner_email/);
 });
