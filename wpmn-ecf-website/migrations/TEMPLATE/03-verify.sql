@@ -1,0 +1,4 @@
+-- Return counts that must be reviewed before cutover.
+-- Example:
+-- SELECT COUNT(*) AS remaining FROM submissions WHERE assigned_to IS NULL;
+-- SELECT COUNT(*) AS mismatched FROM submissions WHERE COALESCE(assigned_to,'')<>COALESCE(assignee,'');

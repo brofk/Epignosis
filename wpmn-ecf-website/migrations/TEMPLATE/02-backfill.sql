@@ -1,0 +1,4 @@
+-- Backfills must be bounded, restartable, and safe to repeat.
+-- Record a stable cursor for large tables and commit each bounded batch.
+-- Example for a small table:
+-- UPDATE submissions SET assigned_to=assignee WHERE assigned_to IS NULL;
