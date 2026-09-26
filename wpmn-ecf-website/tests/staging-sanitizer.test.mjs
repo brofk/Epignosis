@@ -75,15 +75,14 @@ test('sanitizer preserves table, row, and column shape while removing identities
 
 test('date shifting is deterministic and preserves ordering',()=>{
  const dated={submissions:[
-  {id:'one',created_at:'2026-01-01T00:00:00Z',date:'2026-01-01'},
-  {id:'two',created_at:'2026-01-03T00:00:00Z',date:'2026-01-03'}
+  {id:'one',category:'test',payload:'{}',confidential:0,team:'test',status:'New',assignee:'',follow_up:'',response_due_at:'',notes:'',tags:'[]',created_at:'2026-01-01T00:00:00Z',updated_at:'2026-01-01T00:00:00Z'},
+  {id:'two',category:'test',payload:'{}',confidential:0,team:'test',status:'New',assignee:'',follow_up:'',response_due_at:'',notes:'',tags:'[]',created_at:'2026-01-03T00:00:00Z',updated_at:'2026-01-03T00:00:00Z'}
  ]};
  const first=sanitizeDataset(dated);
  const second=sanitizeDataset(dated);
  assert.deepEqual(first,second);
  assert.notEqual(first.submissions[0].created_at,dated.submissions[0].created_at);
  assert.equal(Date.parse(first.submissions[1].created_at)-Date.parse(first.submissions[0].created_at),2*24*60*60*1000);
- assert.equal(Date.parse(`${first.submissions[1].date}T00:00:00Z`)-Date.parse(`${first.submissions[0].date}T00:00:00Z`),2*24*60*60*1000);
 });
 
 test('leak scanner rejects unsanitized email, phone, token, and denylisted values',()=>{

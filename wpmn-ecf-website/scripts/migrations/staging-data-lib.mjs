@@ -50,17 +50,8 @@ function fit(seed,length,alphabet='abcdefghijklmnopqrstuvwxyz'){
  return result;
 }
 
-function fakeText(value,path){
- const source=String(value);
- let index=0;
- return [...source].map(char=>{
-  if(char==='\n'||char==='\r'||char==='\t'||char===' ')return char;
-  if(/[0-9]/.test(char))return String(Number.parseInt(digest(`${path}:${index++}`)[0],16)%10);
-  if(/[A-Z]/.test(char))return fit(`${path}:${index++}`,1).toUpperCase();
-  if(/[a-z]/.test(char))return fit(`${path}:${index++}`,1);
-  index++;
-  return char;
- }).join('');
+function fakeValue(value,path){
+ return `test_value_${digest(`${path}:${value}`).slice(0,16)}`;
 }
 
 function fakeIdentifier(value,path){
@@ -121,7 +112,7 @@ function shiftTemporal(value,shiftMs,path){
  if(typeof value!=='string')return value;
  if(/^\d+$/.test(value))return String(shiftTemporal(Number(value),shiftMs,path));
  const parsed=Date.parse(value);
- if(!Number.isFinite(parsed))return fakeText(value,path);
+ if(!Number.isFinite(parsed))return fakeValue(value,path);
  const shifted=new Date(parsed+shiftMs);
  if(/^\d{4}-\d{2}-\d{2}$/.test(value))return shifted.toISOString().slice(0,10);
  const iso=shifted.toISOString();
@@ -175,7 +166,7 @@ export function sanitizeValue(value,key='',path='root',context={dateShiftMs:731*
  if(scrubbed!==value)return scrubbed;
  if(ID_KEYS.test(key))return fakeIdentifier(value,path);
  // Default-deny: every string not on the structural allowlist becomes synthetic.
- return fakeText(value,path);
+ return fakeValue(value,path);
 }
 
 function validateRows(table,rows){
