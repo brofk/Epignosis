@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {datasetShape,findSensitiveValues,sanitizeDataset} from '../scripts/migrations/staging-data-lib.mjs';
 
 const sample={
- editors:[{user_id:'user_real_123',email:'pastor@example.com',role:'owner',created_at:'2026-09-24T00:00:00Z'}],
+ editors:[{user_id:'user_real_123',email:'pastor@example.com',role:'pastoral-owner',created_at:'2026-09-24T00:00:00Z'}],
  claims:[{id:'claim_real_123',user_id:'user_real_123'}],
  submissions:[{
   id:'submission_real_1',category:'prayer',payload:JSON.stringify({firstName:'Sample',first_name:'Sample',last_name:'Person',full_name:'Sample Person',display_name:'Sample Display',given_name:'Sample Given',family_name:'Sample Family',contact_name:'Sample Contact',owner_name:'Sample Pastor',submitted_by:'Sample Submitter',created_by:'Sample Creator',updated_by:'Sample Updater',requested_by:'Sample Requester',reviewed_by:'Sample Reviewer',assigned_by:'Sample Assigner',comments_text:'Pastoral comment',unanticipated:'Personal detail',email:'person@example.com',phone:639171234567,contactValue:639181112222,otp:123456,pin:4321,verificationCode:654321,recovery_code:246810,mfaCode:135790,authCode:111222,user_id:987654,record_id:'record-real-1',submission_id:'submission-real-1',editor_id:'editor-real-1',owner_id:'owner-real-1',relatedRecordId:'related-real-1',consent:true,prayerRequest:'This is synthetic test data, not a real prayer.',status:'Pastoral crisis involving person',role:'Named family member',category:'Private care detail',team:'Specific care relationship',credentials:{apiKey:'ordinary-value',access_key:'access-value',owner_key:'owner-secret-value',api_key_id:'key-id-value',authorization:'Bearer ordinary-value',password:'plain-value',session:'opaque-value'}}),
