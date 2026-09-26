@@ -6,7 +6,7 @@ const sample={
  editors:[{user_id:'user_real_123',email:'pastor@example.com',role:'owner',created_at:'2026-09-24T00:00:00Z'}],
  claims:[{id:'claim_real_123',user_id:'user_real_123'}],
  submissions:[{
-  id:'submission_real_1',category:'prayer',payload:JSON.stringify({firstName:'Sample',email:'person@example.com',phone:639171234567,otp:123456,user_id:987654,record_id:'record-real-1',submission_id:'submission-real-1',editor_id:'editor-real-1',owner_id:'owner-real-1',relatedRecordId:'related-real-1',consent:true,prayerRequest:'This is synthetic test data, not a real prayer.',status:'Pastoral crisis involving person',role:'Named family member',category:'Private care detail',team:'Specific care relationship',credentials:{apiKey:'ordinary-value',access_key:'access-value',owner_key:'owner-secret-value',api_key_id:'key-id-value',authorization:'Bearer ordinary-value',password:'plain-value',session:'opaque-value'}}),
+  id:'submission_real_1',category:'prayer',payload:JSON.stringify({firstName:'Sample',email:'person@example.com',phone:639171234567,otp:123456,pin:4321,verificationCode:654321,recovery_code:246810,mfaCode:135790,authCode:111222,user_id:987654,record_id:'record-real-1',submission_id:'submission-real-1',editor_id:'editor-real-1',owner_id:'owner-real-1',relatedRecordId:'related-real-1',consent:true,prayerRequest:'This is synthetic test data, not a real prayer.',status:'Pastoral crisis involving person',role:'Named family member',category:'Private care detail',team:'Specific care relationship',credentials:{apiKey:'ordinary-value',access_key:'access-value',owner_key:'owner-secret-value',api_key_id:'key-id-value',authorization:'Bearer ordinary-value',password:'plain-value',session:'opaque-value'}}),
   confidential:1,team:'Pastoral Team',status:'New',assignee:'Sample Pastor',first_name:'Sample',last_name:'Person',full_name:'Sample Person',display_name:'Sample Display',given_name:'Sample Given',family_name:'Sample Family',contact_name:'Sample Contact',owner_name:'Sample Pastor',submitted_by:'Sample Submitter',created_by:'Sample Creator',updated_by:'Sample Updater',requested_by:'Sample Requester',reviewed_by:'Sample Reviewer',assigned_by:'Sample Assigner',comments_text:'Pastoral comment',unanticipated:'Personal detail',follow_up:'',response_due_at:'',notes:'Synthetic private note',tags:'["pastoral-care"]',created_at:'2026-09-24T00:00:00Z',updated_at:'2026-09-24T00:00:00Z'
  }],
  rate_limits:[{key:'ip-derived-value',count:2,expires_at:1790208000}],
@@ -59,7 +59,12 @@ test('sanitizer preserves table, row, and column shape while removing identities
  assert.notEqual(sanitizedPayload.category,'Private care detail');
  assert.notEqual(sanitizedPayload.team,'Specific care relationship');
  assert.notEqual(sanitizedPayload.phone,639171234567);
- assert.notEqual(sanitizedPayload.otp,123456);
+ assert.equal(sanitizedPayload.otp,0);
+ assert.equal(sanitizedPayload.pin,0);
+ assert.equal(sanitizedPayload.verificationCode,0);
+ assert.equal(sanitizedPayload.recovery_code,0);
+ assert.equal(sanitizedPayload.mfaCode,0);
+ assert.equal(sanitizedPayload.authCode,0);
  assert.notEqual(sanitizedPayload.user_id,987654);
  assert.notEqual(sanitizedPayload.record_id,'record-real-1');
  assert.notEqual(sanitizedPayload.submission_id,'submission-real-1');
@@ -95,7 +100,7 @@ test('date shifting is deterministic and preserves ordering',()=>{
 });
 
 test('leak scanner rejects unsanitized email, phone, token, and denylisted values',()=>{
- const unsafe={rows:[{email:'real.person@example.com',phone:639175551212,user_id:987654,full_name:'Known Person',notes:'Call +63 917 555 1212 for Known Person',details:JSON.stringify({authorization:'Bearer ordinary-value',password:'plain-value',alternateEmail:'alternate@example.com',misc:'Bearer abcDEF1234567890',opaque:'Abcdefghijklmnopqrstuvwxyz1234567890'}),token:'sk_live_1234567890abcdef'}]};
+ const unsafe={rows:[{email:'real.person@example.com',phone:639175551212,otp:123456,user_id:987654,full_name:'Known Person',notes:'Call +63 917 555 1212 for Known Person',details:JSON.stringify({authorization:'Bearer ordinary-value',password:'plain-value',alternateEmail:'alternate@example.com',misc:'Bearer abcDEF1234567890',opaque:'Abcdefghijklmnopqrstuvwxyz1234567890'}),token:'sk_live_1234567890abcdef'}]};
  const findings=findSensitiveValues(unsafe,{denylist:['Known Person']});
  assert.deepEqual(new Set(findings.map(item=>item.type)),new Set(['email','phone','token','denylist','secret-field','numeric-sensitive','identity-field']));
 });

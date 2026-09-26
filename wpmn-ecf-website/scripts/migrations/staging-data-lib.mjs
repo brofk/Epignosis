@@ -22,6 +22,7 @@ const PHONE_KEYS=/(phone|mobile|whatsapp|contactNumber)/i;
 const ID_KEYS=/(^id$|(?:^|_)[a-z0-9]+_id$|[a-z0-9]+Id$|(?:^|_)(user|claim|owner|actor|assignee)(?:_|$))/i;
 const NAME_KEYS=/(name|submitted.?by|created.?by|updated.?by|requested.?by|reviewed.?by|assigned.?by)/i;
 const SECRET_KEYS=/(token|secret|password|authorization|cookie|session|credential|api.?key|access.?key|private.?key|client.?secret|signing.?key|(^|[_-])key($|[_-]))/i;
+const AUTH_CODE_KEYS=/(^|[_-])(otp|pin|passcode|verification[_-]?code|recovery[_-]?code|mfa[_-]?code|two[_-]?factor[_-]?code|auth[_-]?code|security[_-]?code)($|[_-])/i;
 const EMAIL_RE=/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi;
 const EMAIL_TEST_RE=/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i;
 const PHONE_CANDIDATE_RE=/\+?\d(?:[\d\s().-]{6,}\d)/g;
@@ -123,8 +124,13 @@ function contextFor(dataset){
  return {dateShiftMs:days*24*60*60*1000};
 }
 
+function isAuthCodeKey(key){
+ const normalized=String(key).replace(/([a-z0-9])([A-Z])/g,'$1_$2').toLowerCase();
+ return AUTH_CODE_KEYS.test(normalized);
+}
+
 function isPreservedColumn(path,key){
- if(EMAIL_KEYS.test(key)||PHONE_KEYS.test(key)||ID_KEYS.test(key)||NAME_KEYS.test(key)||SECRET_KEYS.test(key))return false;
+ if(EMAIL_KEYS.test(key)||PHONE_KEYS.test(key)||ID_KEYS.test(key)||NAME_KEYS.test(key)||SECRET_KEYS.test(key)||isAuthCodeKey(key))return false;
  const match=path.match(/^([a-z_][a-z0-9_]*)\[\d+\]\.([a-zA-Z_][a-zA-Z0-9_]*)$/);
  return Boolean(match&&match[2]===key&&PRESERVED_COLUMNS.get(match[1])?.has(key));
 }
@@ -133,14 +139,14 @@ export function sanitizeValue(value,key='',path='root',context={dateShiftMs:731*
  if(TEMPORAL_KEYS.has(key))return shiftTemporal(value,context.dateShiftMs,path);
  if(value===null)return value;
  if(isPreservedColumn(path,key))return value;
- if(typeof value==='number')return SECRET_KEYS.test(key)||PHONE_KEYS.test(key)||ID_KEYS.test(key)||NAME_KEYS.test(key)?0:fakeNumber(value,path);
+ if(typeof value==='number')return SECRET_KEYS.test(key)||PHONE_KEYS.test(key)||ID_KEYS.test(key)||NAME_KEYS.test(key)||isAuthCodeKey(key)?0:fakeNumber(value,path);
  if(typeof value==='boolean')return !value;
  if(Array.isArray(value))return value.map((item,index)=>sanitizeValue(item,key,`${path}[${index}]`,context));
  if(typeof value==='object')return Object.fromEntries(Object.entries(value).map(([childKey,child])=>[childKey,sanitizeValue(child,childKey,`${path}.${childKey}`,context)]));
  if(typeof value!=='string')return value;
  const structured=maybeStructured(value,key,path,context);
  if(structured!==null)return structured;
- if(SECRET_KEYS.test(key))return fakeSecret(value,path);
+ if(SECRET_KEYS.test(key)||isAuthCodeKey(key))return fakeSecret(value,path);
  if(EMAIL_KEYS.test(key)||EMAIL_TEST_RE.test(value))return fakeEmail(value,path);
  if(PHONE_KEYS.test(key))return fakePhone(value);
  if(NAME_KEYS.test(key))return fakePerson(value,path);
@@ -190,7 +196,7 @@ export function findSensitiveValues(value,{denylist=[]}={}){
  if(Array.isArray(current)){current.forEach((item,index)=>visit(item,`${path}[${index}]`,key));return;}
   if(typeof current==='object'){for(const [childKey,child] of Object.entries(current))visit(child,`${path}.${childKey}`,childKey);return;}
   if(typeof current==='number'){
-   if((SECRET_KEYS.test(key)||PHONE_KEYS.test(key)||ID_KEYS.test(key)||NAME_KEYS.test(key))&&current!==0)findings.push({path,type:'numeric-sensitive',detail:'non-synthetic numeric identity, contact, or secret value'});
+   if((SECRET_KEYS.test(key)||PHONE_KEYS.test(key)||ID_KEYS.test(key)||NAME_KEYS.test(key)||isAuthCodeKey(key))&&current!==0)findings.push({path,type:'numeric-sensitive',detail:'non-synthetic numeric identity, contact, or secret value'});
    return;
   }
   if(typeof current!=='string')return;
@@ -205,7 +211,7 @@ export function findSensitiveValues(value,{denylist=[]}={}){
   }
   const lower=current.toLowerCase();
   for(const term of denied)if(lower.includes(term))findings.push({path,type:'denylist',detail:term});
-  if(SECRET_KEYS.test(key)&&!current.startsWith('test_secret_'))findings.push({path,type:'secret-field',detail:'non-synthetic value under a secret-bearing key'});
+  if((SECRET_KEYS.test(key)||isAuthCodeKey(key))&&!current.startsWith('test_secret_'))findings.push({path,type:'secret-field',detail:'non-synthetic value under a secret-bearing key'});
   if(NAME_KEYS.test(key)&&!current.startsWith('test_person_'))findings.push({path,type:'identity-field',detail:'non-synthetic value under an identity-bearing key'});
   const scanText=current.replace(/test_secret_[a-f0-9]+/gi,'').replace(/test_person_[a-f0-9]+/gi,'');
   for(const match of scanText.matchAll(EMAIL_RE))if(!match[0].toLowerCase().endsWith('@example.invalid'))findings.push({path,type:'email',detail:match[0]});
