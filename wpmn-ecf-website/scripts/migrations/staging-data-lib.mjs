@@ -1,14 +1,21 @@
 import {createHash} from 'node:crypto';
 
 const PRESERVED_COLUMNS=new Map([
- ['records',new Set(['kind','status','version'])],
- ['editors',new Set(['role'])],
- ['submissions',new Set(['category','confidential','team','status'])],
+ ['records',new Set(['version'])],
+ ['submissions',new Set(['confidential'])],
  ['rate_limits',new Set(['count'])],
- ['assets',new Set(['type'])],
- ['audit_events',new Set(['action'])],
  ['write_guards',new Set(['valid'])],
  ['settings',new Set(['version'])]
+]);
+const PRESERVED_STRING_VALUES=new Map([
+ ['records.kind',new Set(['sermon','article','event','series','faq'])],
+ ['records.status',new Set(['draft','published'])],
+ ['editors.role',new Set(['pastoral-owner','editor'])],
+ ['submissions.category',new Set(['visitor','prayer','house','discipleship','college','partnership','giving','general'])],
+ ['submissions.team',new Set(['Connect Team','Prayer Team','House Church Coordinator','Discipleship Coordinator','ELC Admin','WPMN Leadership','Finance / Admin','Admin / Connect Team','Pastoral Team'])],
+ ['submissions.status',new Set(['New','In progress','Follow-up scheduled','Complete'])],
+ ['assets.type',new Set(['image/jpeg','image/png','image/webp','application/pdf'])],
+ ['audit_events.action',new Set(['giving-setting','update-submission','delete-submission'])]
 ]);
 const REVIEWED_COLUMNS=new Map([
  ['assets',new Set(['id','name','type','owner','created_at'])],
@@ -135,16 +142,22 @@ function looksLikeNumericPhone(value,key){
  return digits.length>=8&&digits.length<=15;
 }
 
-function isPreservedColumn(path,key){
+function isPreservedColumn(path,key,value){
  if(EMAIL_KEYS.test(key)||PHONE_KEYS.test(key)||ID_KEYS.test(key)||NAME_KEYS.test(key)||SECRET_KEYS.test(key)||isAuthCodeKey(key))return false;
  const match=path.match(/^([a-z_][a-z0-9_]*)\[\d+\]\.([a-zA-Z_][a-zA-Z0-9_]*)$/);
- return Boolean(match&&match[2]===key&&PRESERVED_COLUMNS.get(match[1])?.has(key));
+ if(!match||match[2]!==key)return false;
+ const table=match[1];
+ if(PRESERVED_COLUMNS.get(table)?.has(key))return true;
+ const allowed=PRESERVED_STRING_VALUES.get(`${table}.${key}`);
+ if(!allowed)return false;
+ if(typeof value!=='string'||!allowed.has(value))throw new Error(`Unsupported value in ${table}.${key}. Review the application enum and sanitizer before preserving it.`);
+ return true;
 }
 
 export function sanitizeValue(value,key='',path='root',context={dateShiftMs:731*24*60*60*1000}){
  if(TEMPORAL_KEYS.has(key))return shiftTemporal(value,context.dateShiftMs,path);
  if(value===null)return value;
- if(isPreservedColumn(path,key))return value;
+ if(isPreservedColumn(path,key,value))return value;
  if(typeof value==='number')return SECRET_KEYS.test(key)||PHONE_KEYS.test(key)||ID_KEYS.test(key)||NAME_KEYS.test(key)||isAuthCodeKey(key)||looksLikeNumericPhone(value,key)?0:fakeNumber(value,path);
  if(typeof value==='boolean')return !value;
  if(Array.isArray(value))return value.map((item,index)=>sanitizeValue(item,key,`${path}[${index}]`,context));

@@ -75,8 +75,8 @@ test('sanitizer preserves table, row, and column shape while removing identities
 
 test('date shifting is deterministic and preserves ordering',()=>{
  const dated={submissions:[
-  {id:'one',category:'test',payload:'{}',confidential:0,team:'test',status:'New',assignee:'',follow_up:'',response_due_at:'',notes:'',tags:'[]',created_at:'2026-01-01T00:00:00Z',updated_at:'2026-01-01T00:00:00Z'},
-  {id:'two',category:'test',payload:'{}',confidential:0,team:'test',status:'New',assignee:'',follow_up:'',response_due_at:'',notes:'',tags:'[]',created_at:'2026-01-03T00:00:00Z',updated_at:'2026-01-03T00:00:00Z'}
+  {id:'one',category:'prayer',payload:'{}',confidential:0,team:'Prayer Team',status:'New',assignee:'',follow_up:'',response_due_at:'',notes:'',tags:'[]',created_at:'2026-01-01T00:00:00Z',updated_at:'2026-01-01T00:00:00Z'},
+  {id:'two',category:'prayer',payload:'{}',confidential:0,team:'Prayer Team',status:'New',assignee:'',follow_up:'',response_due_at:'',notes:'',tags:'[]',created_at:'2026-01-03T00:00:00Z',updated_at:'2026-01-03T00:00:00Z'}
  ]};
  const first=sanitizeDataset(dated);
  const second=sanitizeDataset(dated);
@@ -98,4 +98,6 @@ test('sanitizer rejects a malformed table export',()=>{
  assert.throws(()=>datasetShape({submissions:[42]}),/Table submissions row 0 must be an object/);
  assert.throws(()=>sanitizeDataset({pastoral_secrets:[{id:'one'}]}),/Unsupported table\(s\): pastoral_secrets/);
  assert.throws(()=>sanitizeDataset({submissions:[{id:'one',owner_email:'private@example.com'}]}),/Unsupported column\(s\) in submissions: owner_email/);
+ assert.throws(()=>sanitizeDataset({submissions:[{category:'Private confession'}]}),/Unsupported value in submissions\.category/);
+ assert.throws(()=>sanitizeDataset({records:[{kind:'pastoral-secret'}]}),/Unsupported value in records\.kind/);
 });
