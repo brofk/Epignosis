@@ -42,6 +42,9 @@ test('migration runner is repeat-safe and skips verified migrations',()=>withDat
  const second=applyMigrations(db,migrations);
  assert.deepEqual(second.map(item=>item.status),['skipped','skipped']);
  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM __migration_history').get().n,2);
+ const timestamps=db.prepare('SELECT applied_at FROM __migration_history ORDER BY name').all();
+ assert.equal(timestamps.length,2);
+ for(const row of timestamps)assert.match(row.applied_at,/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
 }));
 
 test('expand and backfill can be repeated while old reads remain reversible',()=>withDatabase(db=>{

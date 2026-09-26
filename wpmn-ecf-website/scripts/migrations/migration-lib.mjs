@@ -25,7 +25,7 @@ export function ensureMigrationHistory(db){
  db.exec(`CREATE TABLE IF NOT EXISTS ${HISTORY_TABLE} (
   name TEXT PRIMARY KEY NOT NULL,
   checksum TEXT NOT NULL,
-  applied_at TEXT NOT NULL
+  applied_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
  )`);
 }
 
@@ -46,7 +46,7 @@ export function applyMigrationFile(db,file){
  db.exec('BEGIN IMMEDIATE');
  try{
   for(const statement of splitMigration(sql))db.exec(statement);
-  db.prepare(`INSERT INTO ${HISTORY_TABLE} (name,checksum,applied_at) VALUES (?,?,?)`).run(name,checksum,new Date().toISOString());
+  db.prepare(`INSERT INTO ${HISTORY_TABLE} (name,checksum) VALUES (?,?)`).run(name,checksum);
   db.exec('COMMIT');
   return {name,status:'applied',checksum};
  }catch(error){
