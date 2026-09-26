@@ -186,8 +186,11 @@ function validateRows(table,rows){
  if(!Array.isArray(rows))throw new Error(`Table ${table} must contain an array of rows`);
  rows.forEach((row,index)=>{
   if(row===null||typeof row!=='object'||Array.isArray(row))throw new Error(`Table ${table} row ${index} must be an object`);
-  const unexpected=Object.keys(row).filter(column=>!REVIEWED_COLUMNS.get(table)?.has(column));
+  const expected=REVIEWED_COLUMNS.get(table);
+  const unexpected=Object.keys(row).filter(column=>!expected?.has(column));
   if(unexpected.length)throw new Error(`Unsupported column(s) in ${table}: ${unexpected.sort().join(', ')}. Review the schema and sanitizer before adding a column.`);
+  const missing=[...expected].filter(column=>!Object.hasOwn(row,column));
+  if(missing.length)throw new Error(`Missing column(s) in ${table} row ${index}: ${missing.sort().join(', ')}. Export every reviewed column explicitly, including nullable values.`);
  });
 }
 
@@ -251,6 +254,6 @@ export function findSensitiveValues(value,{denylist=[]}={}){
 export function datasetShape(dataset){
  return Object.fromEntries(Object.entries(dataset).map(([table,rows])=>{
   validateRows(table,rows);
-  return [table,{rows:rows.length,keys:[...new Set(rows.flatMap(row=>Object.keys(row)))].sort()}];
+  return [table,{rows:rows.length,rowKeys:rows.map(row=>Object.keys(row).sort())}];
  }));
 }

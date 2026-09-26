@@ -98,6 +98,8 @@ test('sanitizer rejects a malformed table export',()=>{
  assert.throws(()=>datasetShape({submissions:[42]}),/Table submissions row 0 must be an object/);
  assert.throws(()=>sanitizeDataset({pastoral_secrets:[{id:'one'}]}),/Unsupported table\(s\): pastoral_secrets/);
  assert.throws(()=>sanitizeDataset({submissions:[{id:'one',owner_email:'private@example.com'}]}),/Unsupported column\(s\) in submissions: owner_email/);
- assert.throws(()=>sanitizeDataset({submissions:[{category:'Private confession'}]}),/Unsupported value in submissions\.category/);
- assert.throws(()=>sanitizeDataset({records:[{kind:'pastoral-secret'}]}),/Unsupported value in records\.kind/);
+ assert.throws(()=>sanitizeDataset({submissions:[{...sample.submissions[0],category:'Private confession'}]}),/Unsupported value in submissions\.category/);
+ assert.throws(()=>sanitizeDataset({records:[{...sample.records[0],kind:'pastoral-secret'}]}),/Unsupported value in records\.kind/);
+ const sparse={...sample.submissions[0]};delete sparse.notes;
+ assert.throws(()=>sanitizeDataset({submissions:[sparse]}),/Missing column\(s\) in submissions row 0: notes/);
 });
