@@ -89,6 +89,18 @@ test('changing an already applied migration is rejected by checksum',()=>{
  }finally{rmSync(directory,{recursive:true,force:true});}
 });
 
+test('migration files cannot control the runner transaction',()=>{
+ const directory=mkdtempSync(join(tmpdir(),'wpmn-transaction-'));
+ const file=join(directory,'0001_forbidden.sql');
+ try{
+  writeFileSync(file,'CREATE TABLE should_not_exist (id TEXT);\n--> statement-breakpoint\nCOMMIT;\n');
+  withDatabase(db=>{
+   assert.throws(()=>applyMigrationFile(db,file),/must not contain transaction-control SQL/);
+   assert.equal(db.prepare("SELECT COUNT(*) AS n FROM sqlite_master WHERE type='table' AND name='should_not_exist'").get().n,0);
+  });
+ }finally{rmSync(directory,{recursive:true,force:true});}
+});
+
 test('migration filenames are ordered by numeric prefix rather than text order',()=>{
  const directory=mkdtempSync(join(tmpdir(),'wpmn-order-'));
  try{

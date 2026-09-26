@@ -38,6 +38,9 @@ export function applyMigrationFile(db,file){
  const name=basename(file);
  const sql=readFileSync(file,'utf8');
  const checksum=migrationChecksum(sql);
+ const statements=splitMigration(sql);
+ const transactionControl=/^(?:BEGIN|COMMIT|END|ROLLBACK|SAVEPOINT|RELEASE)\b/i;
+ if(statements.some(statement=>transactionControl.test(statement)))throw new Error(`Migration must not contain transaction-control SQL: ${name}`);
  const applied=appliedMigrations(db);
  if(applied.has(name)){
   if(applied.get(name)!==checksum)throw new Error(`Applied migration checksum changed: ${name}`);
@@ -45,12 +48,13 @@ export function applyMigrationFile(db,file){
  }
  db.exec('BEGIN IMMEDIATE');
  try{
-  for(const statement of splitMigration(sql))db.exec(statement);
+  for(const statement of statements)db.exec(statement);
   db.prepare(`INSERT INTO ${HISTORY_TABLE} (name,checksum) VALUES (?,?)`).run(name,checksum);
   db.exec('COMMIT');
   return {name,status:'applied',checksum};
  }catch(error){
-  db.exec('ROLLBACK');
+  try{db.exec('ROLLBACK');}
+  catch(rollbackError){throw new AggregateError([error,rollbackError],`Migration failed and rollback also failed: ${name}`);}
   throw error;
  }
 }

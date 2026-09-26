@@ -129,6 +129,12 @@ function isAuthCodeKey(key){
  return AUTH_CODE_KEYS.test(normalized);
 }
 
+function looksLikeNumericPhone(value,key){
+ if(!Number.isFinite(value)||!Number.isInteger(value)||value===0||TEMPORAL_KEYS.has(key))return false;
+ const digits=String(Math.abs(value)).replace(/\D/g,'');
+ return digits.length>=8&&digits.length<=15;
+}
+
 function isPreservedColumn(path,key){
  if(EMAIL_KEYS.test(key)||PHONE_KEYS.test(key)||ID_KEYS.test(key)||NAME_KEYS.test(key)||SECRET_KEYS.test(key)||isAuthCodeKey(key))return false;
  const match=path.match(/^([a-z_][a-z0-9_]*)\[\d+\]\.([a-zA-Z_][a-zA-Z0-9_]*)$/);
@@ -139,7 +145,7 @@ export function sanitizeValue(value,key='',path='root',context={dateShiftMs:731*
  if(TEMPORAL_KEYS.has(key))return shiftTemporal(value,context.dateShiftMs,path);
  if(value===null)return value;
  if(isPreservedColumn(path,key))return value;
- if(typeof value==='number')return SECRET_KEYS.test(key)||PHONE_KEYS.test(key)||ID_KEYS.test(key)||NAME_KEYS.test(key)||isAuthCodeKey(key)?0:fakeNumber(value,path);
+ if(typeof value==='number')return SECRET_KEYS.test(key)||PHONE_KEYS.test(key)||ID_KEYS.test(key)||NAME_KEYS.test(key)||isAuthCodeKey(key)||looksLikeNumericPhone(value,key)?0:fakeNumber(value,path);
  if(typeof value==='boolean')return !value;
  if(Array.isArray(value))return value.map((item,index)=>sanitizeValue(item,key,`${path}[${index}]`,context));
  if(typeof value==='object')return Object.fromEntries(Object.entries(value).map(([childKey,child])=>[childKey,sanitizeValue(child,childKey,`${path}.${childKey}`,context)]));
@@ -196,7 +202,7 @@ export function findSensitiveValues(value,{denylist=[]}={}){
  if(Array.isArray(current)){current.forEach((item,index)=>visit(item,`${path}[${index}]`,key));return;}
   if(typeof current==='object'){for(const [childKey,child] of Object.entries(current))visit(child,`${path}.${childKey}`,childKey);return;}
   if(typeof current==='number'){
-   if((SECRET_KEYS.test(key)||PHONE_KEYS.test(key)||ID_KEYS.test(key)||NAME_KEYS.test(key)||isAuthCodeKey(key))&&current!==0)findings.push({path,type:'numeric-sensitive',detail:'non-synthetic numeric identity, contact, or secret value'});
+   if((SECRET_KEYS.test(key)||PHONE_KEYS.test(key)||ID_KEYS.test(key)||NAME_KEYS.test(key)||isAuthCodeKey(key)||looksLikeNumericPhone(current,key))&&current!==0)findings.push({path,type:'numeric-sensitive',detail:'non-synthetic numeric identity, contact, or secret value'});
    return;
   }
   if(typeof current!=='string')return;
