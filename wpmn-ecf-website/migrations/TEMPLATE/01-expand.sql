@@ -1,0 +1,4 @@
+-- Add new nullable columns, new tables, or new indexes only.
+-- Do not remove or rename the old representation in this release.
+-- Example:
+-- ALTER TABLE submissions ADD COLUMN assigned_to TEXT;

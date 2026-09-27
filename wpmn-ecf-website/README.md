@@ -46,3 +46,5 @@ Environment keys: `SITE_ORIGIN`, `EDITOR_SETUP_HASH`, `RATE_LIMIT_SALT`. Never p
 ## Validation
 
 TypeScript check, production build, generated schema inspection and focused contact / authorization checks. No browser or visual QA was requested; no browser preview was opened. WebMCP teaching search is registered when available and updates the visible archive; supported browser validation was unavailable in this workflow. This optional integration does not submit forms or save data.
+
+Database migration safety checks run with `npm run test:migrations`. Operational migration packages belong in `migrations/` and must include expansion, verification, rollback, and later contraction instructions. Use `npm run staging:sanitize -- --input approved-export.json --output staging-data.json --denylist denylist.txt` only with an approved read-only export. Never commit production exports or pastoral data. See `docs/MIGRATION_SAFETY_CHUNK_3.md`.

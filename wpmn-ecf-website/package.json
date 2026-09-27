@@ -13,7 +13,9 @@
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "db:generate": "drizzle-kit generate",
     "test:security": "node --test tests/security.test.mjs tests/csp.test.mjs tests/redis-architecture.test.mjs",
-    "test:security:d1": "node --test tests/d1-transactions.test.mjs"
+    "test:security:d1": "node --test tests/d1-transactions.test.mjs",
+    "test:migrations": "node --test tests/migrations.test.mjs tests/staging-sanitizer.test.mjs",
+    "staging:sanitize": "node scripts/migrations/sanitize-staging-data.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",

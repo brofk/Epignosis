@@ -39,6 +39,8 @@ jobs:
         run: npm run test:security
       - name: Run D1 concurrency test
         run: npm run test:security:d1
+      - name: Run migration and staging-data safety tests
+        run: npm run test:migrations
       - name: Type-check
         run: node node_modules/typescript/bin/tsc --noEmit
       - name: Build production site

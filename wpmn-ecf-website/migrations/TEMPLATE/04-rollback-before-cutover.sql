@@ -1,0 +1,3 @@
+-- Prefer application rollback and old reads while leaving additive schema in place.
+-- Add reconciliation SQL here only if the expand/backfill wrote data that the old application cannot read.
+-- Never perform destructive cleanup during an emergency rollback.

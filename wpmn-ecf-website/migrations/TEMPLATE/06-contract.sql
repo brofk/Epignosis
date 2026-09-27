@@ -1,0 +1,3 @@
+-- This file belongs to a later, separately approved release.
+-- Preserve or archive the old representation until backup and restore evidence is confirmed.
+-- Add destructive SQL only after the observation window and explicit owner approval.
