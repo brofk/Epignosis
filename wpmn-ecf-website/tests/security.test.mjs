@@ -215,3 +215,18 @@ test('editor rejects incomplete or external resource next steps',async()=>{
  assert.equal((await editor.POST(req(external))).status,400);
  assert.equal(sqlite.prepare('SELECT count(*) n FROM records').get().n,0);
 });
+
+test('a sermon cannot publish without a safe next step and survives the public read',async()=>{
+ identity('editor');
+ const sermon={action:'record',record:{id:'published-sermon',kind:'sermon',title:'Published test sermon',slug:'published-test-sermon',status:'published',data:{excerpt:'Synthetic test only',transcript:'Synthetic reviewed transcript.'},version:0}};
+ assert.equal((await editor.POST(req(sermon))).status,400);
+ sermon.record.data.nextStepLabel='Continue into discipleship';
+ sermon.record.data.nextStepUrl='/discipleship';
+ assert.equal((await editor.POST(req(sermon))).status,200);
+ identity(null);
+ const publicData=await (await content.GET()).json();
+ const saved=publicData.records.find(r=>r.id==='published-sermon');
+ assert.ok(saved);
+ assert.equal(saved.data.nextStepLabel,'Continue into discipleship');
+ assert.equal(saved.data.nextStepUrl,'/discipleship');
+});
