@@ -21,6 +21,7 @@ const exports=await import('../app/api/editor/export/route.ts');
 const upload=await import('../app/api/upload/route.ts');
 const contact=await import('../app/api/contact/route.ts');
 const content=await import('../app/api/content/route.ts');
+const {publicContactPayload}=await import('../lib/contact-payload.ts');
 const {hash}=await import('../lib/security.ts');
 const {settingsGuard,saveSetting,clearGuard}=await import('../lib/write-sql.ts');
 function identity(role){globalThis.__testHeaders=new Headers(role?{'oai-authenticated-user-id':'test-user','oai-authenticated-user-email':'test@example.test'}:{});sqlite.prepare('DELETE FROM editors').run();if(role&&role!=='unlisted')sqlite.prepare('INSERT INTO editors VALUES (?,?,?,?)').run('test-user','test@example.test',role,'now');}
@@ -112,3 +113,73 @@ test('every API route is classified; private handlers use the shared guard',()=>
  for(const file of files.filter(f=>f.includes('/editor/')||f==='app/api/upload/route.ts'))assert.match(readFileSync(file,'utf8'),/protectedRoute\(/);
 });
 function requireFs(){return {globSync:fsGlob};}
+
+test('all public form pathways reach the protected pastoral workflow',async()=>{
+ const {routing}=await import('../lib/defaults.ts');
+ const cases=[
+  {reason:'visitor',data:{firstName:'Journey Visitor',email:'visitor@example.test',campus:'Baguio',thisSunday:'Yes',children:'Yes',message:'Please help me prepare.'},team:'Connect Team',confidential:0},
+  {reason:'prayer',data:{firstName:'Journey Prayer',message:'SYNTHETIC_PRIVATE_PRAYER'},team:'Pastoral Team',confidential:1,followUp:false},
+  {reason:'house',data:{firstName:'Journey House',email:'house@example.test',campus:'Baguio',message:'I would like a group.'},team:'House Church Coordinator',confidential:0},
+  {reason:'discipleship',data:{firstName:'Journey Discipleship',email:'discipleship@example.test',campus:'Baguio',interest:'Pastoral care',message:'I would like a conversation.'},team:'Pastoral Team',confidential:1},
+  {reason:'college',data:{firstName:'Journey College',email:'college@example.test',contactMethod:'Email',message:'Please send program information.'},team:'ELC Admin',confidential:0},
+  {reason:'partnership',data:{firstName:'Journey Partnership',email:'partner@example.test',message:'We would like to explore partnership.'},team:'WPMN Leadership',confidential:0},
+  {reason:'giving',data:{firstName:'Journey Giving',email:'giving@example.test',givingHelp:'Partnership',contactMethod:'Email',message:'Please explain approved options.'},team:'WPMN Leadership',confidential:0},
+  {reason:'general',data:{firstName:'Journey General',email:'general@example.test',subject:'Question',message:'This is a synthetic journey test.'},team:'Admin / Connect Team',confidential:0}
+ ];
+ for(const item of cases){
+  const body=publicContactPayload({id:crypto.randomUUID(),reason:item.reason,data:item.data,followUp:item.followUp??true,consent:true,startedAt:Date.now()});
+  assert.equal((await contact.POST(req(body,'/api/contact'))).status,200,item.reason);
+  sqlite.exec('DELETE FROM rate_limits');
+ }
+ const rows=sqlite.prepare('SELECT * FROM submissions ORDER BY category').all();
+ assert.equal(rows.length,cases.length);
+ for(const item of cases){
+  const row=rows.find(candidate=>candidate.category===item.reason);
+  assert.ok(row,item.reason);
+  assert.equal(row.team,item.team,item.reason);
+  assert.equal(row.confidential,item.confidential,item.reason);
+  assert.equal(row.status,'New',item.reason);
+  assert.ok(Math.abs((Date.parse(row.response_due_at)-Date.parse(row.created_at))-routing[item.reason].hours*3600000)<=25,item.reason);
+  assert.equal(JSON.parse(row.payload).privacyConsent,true,item.reason);
+ }
+ const visitor=rows.find(row=>row.category==='visitor');
+ const visitorTags=JSON.parse(visitor.tags);
+ assert.ok(visitorTags.includes('New Visitor'));
+ assert.ok(visitorTags.includes('Campus: Baguio'));
+ assert.ok(visitorTags.includes('Children Attending'));
+ assert.ok(visitorTags.includes('Sunday Visit Planned'));
+ identity('pastoral-owner');
+ const inbox=await (await editor.GET(new Request('https://ministry.test/api/editor'))).json();
+ assert.equal(inbox.messages.length,cases.length);
+ assert.ok(inbox.messages.some(message=>message.category==='prayer'&&message.confidential===1));
+ const nextTags=[...visitorTags,'First Visit','Fast Track Assessment'];
+ assert.equal((await editor.POST(req({action:'message',id:visitor.id,status:'Follow-up scheduled',assignee:'Test Connector',followUp:'2026-10-01',notes:'Synthetic journey test only',tags:nextTags}))).status,200);
+ const progressed=sqlite.prepare('SELECT status,assignee,follow_up,notes,tags FROM submissions WHERE id=?').get(visitor.id);
+ assert.equal(progressed.status,'Follow-up scheduled');
+ assert.equal(progressed.assignee,'Test Connector');
+ assert.equal(progressed.follow_up,'2026-10-01');
+ assert.ok(JSON.parse(progressed.tags).includes('Fast Track Assessment'));
+ const exported=await (await exports.GET(new Request('https://ministry.test/api/editor/export'))).text();
+ assert.match(exported,/Journey Visitor/);
+ assert.doesNotMatch(exported,/SYNTHETIC_PRIVATE_PRAYER/);
+ assert.doesNotMatch(exported,/Journey Discipleship/);
+});
+
+test('server alone controls confidentiality for the exact public form payload',async()=>{
+ const formPayload=publicContactPayload({id:crypto.randomUUID(),reason:'prayer',data:{message:'Private test'},followUp:false,consent:true,startedAt:Date.now()});
+ assert.deepEqual(Object.keys(formPayload).sort(),['consent','data','followUp','id','reason','startedAt']);
+ assert.equal((await contact.POST(req({...formPayload,confidential:false},'/api/contact'))).status,400);
+ assert.equal(sqlite.prepare('SELECT count(*) n FROM submissions').get().n,0);
+ assert.equal((await contact.POST(req(formPayload,'/api/contact'))).status,200);
+ assert.equal(sqlite.prepare('SELECT confidential FROM submissions').get().confidential,1);
+});
+
+test('form validation blocks unusable follow-up requests',async()=>{
+ const invalid=[
+  {id:crypto.randomUUID(),reason:'visitor',consent:true,data:{firstName:'No Contact'}},
+  {id:crypto.randomUUID(),reason:'prayer',consent:true,data:{message:'Follow up without contact'},followUp:true},
+  {id:crypto.randomUUID(),reason:'college',consent:true,data:{firstName:'No Email',phone:'09170000000',contactMethod:'Email',message:'Information please'}}
+ ];
+ for(const body of invalid)assert.equal((await contact.POST(req(body,'/api/contact'))).status,400);
+ assert.equal(sqlite.prepare('SELECT count(*) n FROM submissions').get().n,0);
+});
