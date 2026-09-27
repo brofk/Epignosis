@@ -241,3 +241,17 @@ test('legacy published teaching can still be corrected before its next-step back
  assert.equal(saved.status,'published');
  assert.equal(JSON.parse(saved.data).nextStepUrl,undefined);
 });
+
+test('legacy series keeps its old next teaching until the new next step replaces it',async()=>{
+ sqlite.prepare('INSERT INTO records VALUES (?,?,?,?,?,?,?,?)').run('legacy-series','series','Legacy series','legacy-series','published',JSON.stringify({body:'Reviewed series body.',nextTeaching:'/articles/what-is-union-with-christ'}),1,'now');
+ identity('editor');
+ const legacy={action:'record',record:{id:'legacy-series',kind:'series',title:'Corrected legacy series',slug:'legacy-series',status:'published',data:{body:'Reviewed series body.'},version:1}};
+ assert.equal((await editor.POST(req(legacy))).status,200);
+ let saved=JSON.parse(sqlite.prepare('SELECT data FROM records WHERE id=?').get('legacy-series').data);
+ assert.equal(saved.nextTeaching,'/articles/what-is-union-with-christ');
+ const backfilled={...legacy,record:{...legacy.record,version:2,data:{body:'Reviewed series body.',nextStepLabel:'Continue with union in Christ',nextStepUrl:'/articles/what-is-union-with-christ'}}};
+ assert.equal((await editor.POST(req(backfilled))).status,200);
+ saved=JSON.parse(sqlite.prepare('SELECT data FROM records WHERE id=?').get('legacy-series').data);
+ assert.equal(saved.nextStepUrl,'/articles/what-is-union-with-christ');
+ assert.equal(saved.nextTeaching,undefined);
+});
