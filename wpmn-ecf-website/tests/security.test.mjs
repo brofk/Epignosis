@@ -230,3 +230,14 @@ test('a sermon cannot publish without a safe next step and survives the public r
  assert.equal(saved.data.nextStepLabel,'Continue into discipleship');
  assert.equal(saved.data.nextStepUrl,'/discipleship');
 });
+
+test('legacy published teaching can still be corrected before its next-step backfill',async()=>{
+ sqlite.prepare('INSERT INTO records VALUES (?,?,?,?,?,?,?,?)').run('legacy-article','article','Legacy article','legacy-article','published',JSON.stringify({body:'Reviewed legacy body.'}),1,'now');
+ identity('editor');
+ const legacy={action:'record',record:{id:'legacy-article',kind:'article',title:'Corrected legacy article',slug:'legacy-article',status:'published',data:{body:'Reviewed legacy body.'},version:1}};
+ assert.equal((await editor.POST(req(legacy))).status,200);
+ const saved=sqlite.prepare('SELECT title,status,data FROM records WHERE id=?').get('legacy-article');
+ assert.equal(saved.title,'Corrected legacy article');
+ assert.equal(saved.status,'published');
+ assert.equal(JSON.parse(saved.data).nextStepUrl,undefined);
+});

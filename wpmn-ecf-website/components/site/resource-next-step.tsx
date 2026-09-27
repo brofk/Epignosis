@@ -5,7 +5,8 @@ import {safeInternalPath} from '@/lib/store';
 export function getResourceNextStep(record:RecordItem){
  const fallback=resourceNextSteps[record.kind+':'+record.slug];
  const label=(record.data.nextStepLabel||fallback?.label||'').trim();
- const href=safeInternalPath(record.data.nextStepUrl||fallback?.url||'');
+ const legacySeriesUrl=record.kind==='series'?record.data.nextTeaching||'':'';
+ const href=safeInternalPath(record.data.nextStepUrl||legacySeriesUrl||fallback?.url||'');
  return label&&href?{label,href}:null;
 }
 
