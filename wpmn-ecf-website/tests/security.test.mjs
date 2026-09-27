@@ -183,3 +183,35 @@ test('form validation blocks unusable follow-up requests',async()=>{
  for(const body of invalid)assert.equal((await contact.POST(req(body,'/api/contact'))).status,400);
  assert.equal(sqlite.prepare('SELECT count(*) n FROM submissions').get().n,0);
 });
+
+test('every published teaching resource has one safe ministry next step',async()=>{
+ const {defaultRecords,resourceNextSteps}=await import('../lib/defaults.ts');
+ const {safeInternalPath}=await import('../lib/store.ts');
+ const published=defaultRecords.filter(r=>['article','series','sermon'].includes(r.kind)&&r.status==='published');
+ assert.equal(published.length,5);
+ for(const record of published){
+  const expected=resourceNextSteps[record.kind+':'+record.slug];
+  assert.ok(expected,record.slug);
+  assert.equal(record.data.nextStepLabel,expected.label,record.slug);
+  assert.equal(record.data.nextStepUrl,expected.url,record.slug);
+  assert.equal(safeInternalPath(record.data.nextStepUrl),record.data.nextStepUrl,record.slug);
+ }
+ const unfinished=defaultRecords.find(r=>r.id==='sermon-old-record');
+ assert.equal(unfinished.status,'draft');
+ identity(null);
+ const publicData=await (await content.GET()).json();
+ assert.ok(!publicData.records.some(r=>r.id==='sermon-old-record'));
+ assert.equal(safeInternalPath('https://example.test/leave'),'');
+ assert.equal(safeInternalPath('//example.test/leave'),'');
+ assert.equal(safeInternalPath('/safe\\escape'),'');
+});
+
+test('editor rejects incomplete or external resource next steps',async()=>{
+ identity('editor');
+ const base=record('next-step-test','next-step-test');
+ const incomplete={...base,record:{...base.record,data:{...base.record.data,nextStepLabel:'Continue learning'}}};
+ const external={...base,record:{...base.record,id:'external-step',slug:'external-step',data:{...base.record.data,nextStepLabel:'Leave the site',nextStepUrl:'https://example.test'}}};
+ assert.equal((await editor.POST(req(incomplete))).status,400);
+ assert.equal((await editor.POST(req(external))).status,400);
+ assert.equal(sqlite.prepare('SELECT count(*) n FROM records').get().n,0);
+});
