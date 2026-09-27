@@ -242,6 +242,17 @@ test('legacy published teaching can still be corrected before its next-step back
  assert.equal(JSON.parse(saved.data).nextStepUrl,undefined);
 });
 
+test('legacy published sermon can still be corrected before its next-step backfill',async()=>{
+ sqlite.prepare('INSERT INTO records VALUES (?,?,?,?,?,?,?,?)').run('legacy-sermon','sermon','Legacy sermon','legacy-sermon','published',JSON.stringify({transcript:'Reviewed legacy transcript.'}),1,'now');
+ identity('editor');
+ const legacy={action:'record',record:{id:'legacy-sermon',kind:'sermon',title:'Corrected legacy sermon',slug:'legacy-sermon',status:'published',data:{transcript:'Reviewed legacy transcript.'},version:1}};
+ assert.equal((await editor.POST(req(legacy))).status,200);
+ const saved=sqlite.prepare('SELECT title,status,data FROM records WHERE id=?').get('legacy-sermon');
+ assert.equal(saved.title,'Corrected legacy sermon');
+ assert.equal(saved.status,'published');
+ assert.equal(JSON.parse(saved.data).nextStepUrl,undefined);
+});
+
 test('legacy series keeps its old next teaching until the new next step replaces it',async()=>{
  sqlite.prepare('INSERT INTO records VALUES (?,?,?,?,?,?,?,?)').run('legacy-series','series','Legacy series','legacy-series','published',JSON.stringify({body:'Reviewed series body.',nextTeaching:'/articles/what-is-union-with-christ'}),1,'now');
  identity('editor');
