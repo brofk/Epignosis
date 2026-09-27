@@ -21,6 +21,7 @@ const exports=await import('../app/api/editor/export/route.ts');
 const upload=await import('../app/api/upload/route.ts');
 const contact=await import('../app/api/contact/route.ts');
 const content=await import('../app/api/content/route.ts');
+const {publicContactPayload}=await import('../lib/contact-payload.ts');
 const {hash}=await import('../lib/security.ts');
 const {settingsGuard,saveSetting,clearGuard}=await import('../lib/write-sql.ts');
 function identity(role){globalThis.__testHeaders=new Headers(role?{'oai-authenticated-user-id':'test-user','oai-authenticated-user-email':'test@example.test'}:{});sqlite.prepare('DELETE FROM editors').run();if(role&&role!=='unlisted')sqlite.prepare('INSERT INTO editors VALUES (?,?,?,?)').run('test-user','test@example.test',role,'now');}
@@ -113,21 +114,20 @@ test('every API route is classified; private handlers use the shared guard',()=>
 });
 function requireFs(){return {globSync:fsGlob};}
 
-
 test('all public form pathways reach the protected pastoral workflow',async()=>{
  const {routing}=await import('../lib/defaults.ts');
  const cases=[
-  {reason:'visitor',name:'Journey Visitor',data:{firstName:'Journey Visitor',email:'visitor@example.test',campus:'Baguio',thisSunday:'Yes',children:'Yes',message:'Please help me prepare.'},team:'Connect Team',confidential:0},
-  {reason:'prayer',name:'Journey Prayer',data:{firstName:'Journey Prayer',message:'SYNTHETIC_PRIVATE_PRAYER'},team:'Pastoral Team',confidential:1,followUp:false},
-  {reason:'house',name:'Journey House',data:{firstName:'Journey House',email:'house@example.test',campus:'Baguio',message:'I would like a group.'},team:'House Church Coordinator',confidential:0},
-  {reason:'discipleship',name:'Journey Discipleship',data:{firstName:'Journey Discipleship',email:'discipleship@example.test',campus:'Baguio',interest:'Pastoral care',message:'I would like a conversation.'},team:'Pastoral Team',confidential:1},
-  {reason:'college',name:'Journey College',data:{firstName:'Journey College',email:'college@example.test',contactMethod:'Email',message:'Please send program information.'},team:'ELC Admin',confidential:0},
-  {reason:'partnership',name:'Journey Partnership',data:{firstName:'Journey Partnership',email:'partner@example.test',message:'We would like to explore partnership.'},team:'WPMN Leadership',confidential:0},
-  {reason:'giving',name:'Journey Giving',data:{firstName:'Journey Giving',email:'giving@example.test',givingHelp:'Partnership',contactMethod:'Email',message:'Please explain approved options.'},team:'WPMN Leadership',confidential:0},
-  {reason:'general',name:'Journey General',data:{firstName:'Journey General',email:'general@example.test',subject:'Question',message:'This is a synthetic journey test.'},team:'Admin / Connect Team',confidential:0}
+  {reason:'visitor',data:{firstName:'Journey Visitor',email:'visitor@example.test',campus:'Baguio',thisSunday:'Yes',children:'Yes',message:'Please help me prepare.'},team:'Connect Team',confidential:0},
+  {reason:'prayer',data:{firstName:'Journey Prayer',message:'SYNTHETIC_PRIVATE_PRAYER'},team:'Pastoral Team',confidential:1,followUp:false},
+  {reason:'house',data:{firstName:'Journey House',email:'house@example.test',campus:'Baguio',message:'I would like a group.'},team:'House Church Coordinator',confidential:0},
+  {reason:'discipleship',data:{firstName:'Journey Discipleship',email:'discipleship@example.test',campus:'Baguio',interest:'Pastoral care',message:'I would like a conversation.'},team:'Pastoral Team',confidential:1},
+  {reason:'college',data:{firstName:'Journey College',email:'college@example.test',contactMethod:'Email',message:'Please send program information.'},team:'ELC Admin',confidential:0},
+  {reason:'partnership',data:{firstName:'Journey Partnership',email:'partner@example.test',message:'We would like to explore partnership.'},team:'WPMN Leadership',confidential:0},
+  {reason:'giving',data:{firstName:'Journey Giving',email:'giving@example.test',givingHelp:'Partnership',contactMethod:'Email',message:'Please explain approved options.'},team:'WPMN Leadership',confidential:0},
+  {reason:'general',data:{firstName:'Journey General',email:'general@example.test',subject:'Question',message:'This is a synthetic journey test.'},team:'Admin / Connect Team',confidential:0}
  ];
  for(const item of cases){
-  const body={id:crypto.randomUUID(),reason:item.reason,consent:true,data:item.data,followUp:item.followUp??true};
+  const body=publicContactPayload({id:crypto.randomUUID(),reason:item.reason,data:item.data,followUp:item.followUp??true,consent:true,startedAt:Date.now()});
   assert.equal((await contact.POST(req(body,'/api/contact'))).status,200,item.reason);
   sqlite.exec('DELETE FROM rate_limits');
  }
@@ -163,6 +163,15 @@ test('all public form pathways reach the protected pastoral workflow',async()=>{
  assert.match(exported,/Journey Visitor/);
  assert.doesNotMatch(exported,/SYNTHETIC_PRIVATE_PRAYER/);
  assert.doesNotMatch(exported,/Journey Discipleship/);
+});
+
+test('server alone controls confidentiality for the exact public form payload',async()=>{
+ const formPayload=publicContactPayload({id:crypto.randomUUID(),reason:'prayer',data:{message:'Private test'},followUp:false,consent:true,startedAt:Date.now()});
+ assert.deepEqual(Object.keys(formPayload).sort(),['consent','data','followUp','id','reason','startedAt']);
+ assert.equal((await contact.POST(req({...formPayload,confidential:false},'/api/contact'))).status,400);
+ assert.equal(sqlite.prepare('SELECT count(*) n FROM submissions').get().n,0);
+ assert.equal((await contact.POST(req(formPayload,'/api/contact'))).status,200);
+ assert.equal(sqlite.prepare('SELECT confidential FROM submissions').get().confidential,1);
 });
 
 test('form validation blocks unusable follow-up requests',async()=>{
