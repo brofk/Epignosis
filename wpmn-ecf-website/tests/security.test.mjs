@@ -183,3 +183,86 @@ test('form validation blocks unusable follow-up requests',async()=>{
  for(const body of invalid)assert.equal((await contact.POST(req(body,'/api/contact'))).status,400);
  assert.equal(sqlite.prepare('SELECT count(*) n FROM submissions').get().n,0);
 });
+
+test('every published teaching resource has one safe ministry next step',async()=>{
+ const {defaultRecords,resourceNextSteps}=await import('../lib/defaults.ts');
+ const {safeInternalPath}=await import('../lib/store.ts');
+ const published=defaultRecords.filter(r=>['article','series','sermon'].includes(r.kind)&&r.status==='published');
+ assert.equal(published.length,5);
+ for(const record of published){
+  const expected=resourceNextSteps[record.kind+':'+record.slug];
+  assert.ok(expected,record.slug);
+  assert.equal(record.data.nextStepLabel,expected.label,record.slug);
+  assert.equal(record.data.nextStepUrl,expected.url,record.slug);
+  assert.equal(safeInternalPath(record.data.nextStepUrl),record.data.nextStepUrl,record.slug);
+ }
+ const unfinished=defaultRecords.find(r=>r.id==='sermon-old-record');
+ assert.equal(unfinished.status,'draft');
+ identity(null);
+ const publicData=await (await content.GET()).json();
+ assert.ok(!publicData.records.some(r=>r.id==='sermon-old-record'));
+ assert.equal(safeInternalPath('https://example.test/leave'),'');
+ assert.equal(safeInternalPath('//example.test/leave'),'');
+ assert.equal(safeInternalPath('/safe\\escape'),'');
+});
+
+test('editor rejects incomplete or external resource next steps',async()=>{
+ identity('editor');
+ const base=record('next-step-test','next-step-test');
+ const incomplete={...base,record:{...base.record,data:{...base.record.data,nextStepLabel:'Continue learning'}}};
+ const external={...base,record:{...base.record,id:'external-step',slug:'external-step',data:{...base.record.data,nextStepLabel:'Leave the site',nextStepUrl:'https://example.test'}}};
+ assert.equal((await editor.POST(req(incomplete))).status,400);
+ assert.equal((await editor.POST(req(external))).status,400);
+ assert.equal(sqlite.prepare('SELECT count(*) n FROM records').get().n,0);
+});
+
+test('a sermon cannot publish without a safe next step and survives the public read',async()=>{
+ identity('editor');
+ const sermon={action:'record',record:{id:'published-sermon',kind:'sermon',title:'Published test sermon',slug:'published-test-sermon',status:'published',data:{excerpt:'Synthetic test only',transcript:'Synthetic reviewed transcript.'},version:0}};
+ assert.equal((await editor.POST(req(sermon))).status,400);
+ sermon.record.data.nextStepLabel='Continue into discipleship';
+ sermon.record.data.nextStepUrl='/discipleship';
+ assert.equal((await editor.POST(req(sermon))).status,200);
+ identity(null);
+ const publicData=await (await content.GET()).json();
+ const saved=publicData.records.find(r=>r.id==='published-sermon');
+ assert.ok(saved);
+ assert.equal(saved.data.nextStepLabel,'Continue into discipleship');
+ assert.equal(saved.data.nextStepUrl,'/discipleship');
+});
+
+test('legacy published teaching can still be corrected before its next-step backfill',async()=>{
+ sqlite.prepare('INSERT INTO records VALUES (?,?,?,?,?,?,?,?)').run('legacy-article','article','Legacy article','legacy-article','published',JSON.stringify({body:'Reviewed legacy body.'}),1,'now');
+ identity('editor');
+ const legacy={action:'record',record:{id:'legacy-article',kind:'article',title:'Corrected legacy article',slug:'legacy-article',status:'published',data:{body:'Reviewed legacy body.'},version:1}};
+ assert.equal((await editor.POST(req(legacy))).status,200);
+ const saved=sqlite.prepare('SELECT title,status,data FROM records WHERE id=?').get('legacy-article');
+ assert.equal(saved.title,'Corrected legacy article');
+ assert.equal(saved.status,'published');
+ assert.equal(JSON.parse(saved.data).nextStepUrl,undefined);
+});
+
+test('legacy published sermon can still be corrected before its next-step backfill',async()=>{
+ sqlite.prepare('INSERT INTO records VALUES (?,?,?,?,?,?,?,?)').run('legacy-sermon','sermon','Legacy sermon','legacy-sermon','published',JSON.stringify({transcript:'Reviewed legacy transcript.'}),1,'now');
+ identity('editor');
+ const legacy={action:'record',record:{id:'legacy-sermon',kind:'sermon',title:'Corrected legacy sermon',slug:'legacy-sermon',status:'published',data:{transcript:'Reviewed legacy transcript.'},version:1}};
+ assert.equal((await editor.POST(req(legacy))).status,200);
+ const saved=sqlite.prepare('SELECT title,status,data FROM records WHERE id=?').get('legacy-sermon');
+ assert.equal(saved.title,'Corrected legacy sermon');
+ assert.equal(saved.status,'published');
+ assert.equal(JSON.parse(saved.data).nextStepUrl,undefined);
+});
+
+test('legacy series keeps its old next teaching until the new next step replaces it',async()=>{
+ sqlite.prepare('INSERT INTO records VALUES (?,?,?,?,?,?,?,?)').run('legacy-series','series','Legacy series','legacy-series','published',JSON.stringify({body:'Reviewed series body.',nextTeaching:'/articles/what-is-union-with-christ'}),1,'now');
+ identity('editor');
+ const legacy={action:'record',record:{id:'legacy-series',kind:'series',title:'Corrected legacy series',slug:'legacy-series',status:'published',data:{body:'Reviewed series body.'},version:1}};
+ assert.equal((await editor.POST(req(legacy))).status,200);
+ let saved=JSON.parse(sqlite.prepare('SELECT data FROM records WHERE id=?').get('legacy-series').data);
+ assert.equal(saved.nextTeaching,'/articles/what-is-union-with-christ');
+ const backfilled={...legacy,record:{...legacy.record,version:2,data:{body:'Reviewed series body.',nextStepLabel:'Continue with union in Christ',nextStepUrl:'/articles/what-is-union-with-christ'}}};
+ assert.equal((await editor.POST(req(backfilled))).status,200);
+ saved=JSON.parse(sqlite.prepare('SELECT data FROM records WHERE id=?').get('legacy-series').data);
+ assert.equal(saved.nextStepUrl,'/articles/what-is-union-with-christ');
+ assert.equal(saved.nextTeaching,undefined);
+});

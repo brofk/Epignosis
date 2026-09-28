@@ -31,4 +31,5 @@ export const getPublicContent=cache(async()=>{
  return {...config,records,available:true};
 });
 export function safeUrl(value:string){if(value.startsWith('/')&&!value.startsWith('//')&&!value.includes('\\'))return value;try{const u=new URL(value);if(u.protocol==='https:'&&!u.username&&!u.password)return u.href;}catch{}return '';}
+export function safeInternalPath(value:string){return value.startsWith('/')&&!value.startsWith('//')&&!value.includes('\\')?value:'';}
 export function youtubeId(value:string){try{const u=new URL(value);const id=u.hostname==='youtu.be'?u.pathname.slice(1):['www.youtube.com','youtube.com','m.youtube.com'].includes(u.hostname)?u.searchParams.get('v')||u.pathname.split('/').pop():null;return id&&/^[a-zA-Z0-9_-]{11}$/.test(id)?id:null;}catch{return null;}}
