@@ -211,7 +211,7 @@ test('approved Article 1 is publicly available with its real next step',async()=
  const {getContent}=await import('../lib/store.ts');
  const draft=defaultRecords.find(r=>r.slug==='why-the-gospel-is-about-what-christ-has-done');
  assert.equal(draft.status,'published');
- assert.match(draft.data.body,/1 Corinthians 15:1–4/);
+ assert.match(draft.data.body,/1 Corinthians 15:1-4/);
  assert.ok(draft.data.body.length>2000);
  assert.equal(draft.data.nextStepLabel,'Read about the finished work of Christ');
  assert.equal(draft.data.nextStepUrl,'/articles/what-is-the-finished-work-of-christ');
