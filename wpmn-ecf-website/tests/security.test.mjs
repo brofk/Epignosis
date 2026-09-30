@@ -206,6 +206,22 @@ test('every published teaching resource has one safe ministry next step',async()
  assert.equal(safeInternalPath('/safe\\escape'),'');
 });
 
+test('completed article under pastoral review stays private with its real next step',async()=>{
+ const {defaultRecords}=await import('../lib/defaults.ts');
+ const {getContent}=await import('../lib/store.ts');
+ const draft=defaultRecords.find(r=>r.slug==='why-the-gospel-is-about-what-christ-has-done');
+ assert.equal(draft.status,'draft');
+ assert.match(draft.data.body,/1 Corinthians 15:1–4/);
+ assert.ok(draft.data.body.length>2000);
+ assert.equal(draft.data.nextStepLabel,'Read about the finished work of Christ');
+ assert.equal(draft.data.nextStepUrl,'/articles/what-is-the-finished-work-of-christ');
+ identity(null);
+ const publicData=await (await content.GET()).json();
+ assert.ok(!publicData.records.some(r=>r.id===draft.id));
+ const privateData=await getContent(true);
+ assert.ok(privateData.records.some(r=>r.id===draft.id));
+});
+
 test('editor rejects incomplete or external resource next steps',async()=>{
  identity('editor');
  const base=record('next-step-test','next-step-test');
