@@ -1,0 +1,19 @@
+# Applies to every project and directory in this repository.
+.env*
+!.env.example
+.dev.vars*
+*.pem
+*.key
+*.p12
+*.pfx
+credentials.json
+service-account*.json
+gitleaks-report*
+secret-scan*.json
+node_modules/
+.next/
+.wrangler/
+.vercel/
+.security-tools/
+__pycache__/
+*.pyc

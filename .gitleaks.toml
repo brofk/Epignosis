@@ -1,0 +1,11 @@
+title = "WPMN repository secret scanning"
+[extend]
+useDefault = true
+
+# One historical synthetic sanitizer fixture. Never waive the whole test file.
+[[allowlists]]
+description = "Known hexadecimal demo token in historical sanitizer test only"
+condition = "AND"
+paths = ['''^wpmn-ecf-website/tests/staging-sanitizer\.test\.mjs$''']
+regexTarget = "secret"
+regexes = ['''^sk_live_1234567890abcdef$''']
