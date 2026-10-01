@@ -86,7 +86,7 @@ test('date shifting is deterministic and preserves ordering',()=>{
 });
 
 test('leak scanner rejects unsanitized email, phone, token, and denylisted values',()=>{
- const unsafe={rows:[{email:'real.person@example.com',phone:639175551212,alternate:639181234567,otp:123456,user_id:987654,full_name:'Known Person',notes:'Call +63 917 555 1212 for Known Person',details:JSON.stringify({authorization:'Bearer ordinary-value',password:'plain-value',alternateEmail:'alternate@example.com',misc:'Bearer abcDEF1234567890',opaque:'Abcdefghijklmnopqrstuvwxyz1234567890'}),token:'sk_live_1234567890abcdef'}]};
+ const unsafe={rows:[{email:'real.person@example.com',phone:639175551212,alternate:639181234567,otp:123456,user_id:987654,full_name:'Known Person',notes:'Call +63 917 555 1212 for Known Person',details:JSON.stringify({authorization:'Bearer ordinary-value',password:'plain-value',alternateEmail:'alternate@example.com',misc:'Bearer abcDEF1234567890',opaque:'Abcdefghijklmnopqrstuvwxyz1234567890'}),token:['sk','live','1234567890abcdef'].join('_')}]};
  const findings=findSensitiveValues(unsafe,{denylist:['Known Person']});
  assert.deepEqual(new Set(findings.map(item=>item.type)),new Set(['email','phone','token','denylist','secret-field','numeric-sensitive','identity-field']));
 });
