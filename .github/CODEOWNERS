@@ -1,0 +1,7 @@
+# Require owner review for these paths in repository branch protection settings.
+/.github/ @brofk
+/.gitleaks.toml @brofk
+/.gitignore @brofk
+/.githooks/ @brofk
+/scripts/security/ @brofk
+/tests/test_secret_controls.py @brofk
