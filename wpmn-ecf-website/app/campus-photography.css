@@ -1,0 +1,43 @@
+.campus-card {
+  padding: 0;
+  min-height: 440px;
+  overflow: hidden;
+  background: #f8f8f3;
+  color: inherit;
+}
+
+.campus-card.campus-baguio {
+  background: #f8f8f3;
+  color: inherit;
+  border-color: #d3d9d0;
+}
+
+.campus-photo {
+  display: block;
+  width: 100%;
+  height: 220px;
+  object-fit: cover;
+  object-position: center 42%;
+}
+
+.campus-card-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  padding: 25px 28px 27px;
+}
+
+.campus-card.campus-baguio .campus-bottom {
+  border-color: #bac8bd;
+}
+
+@media (max-width: 960px) {
+  .campus-card { padding: 0; }
+  .campus-card-body { padding: 23px 20px 24px; }
+}
+
+@media (max-width: 700px) {
+  .campus-card { padding: 0; min-height: 0; }
+  .campus-photo { height: 250px; }
+  .campus-card-body { min-height: 285px; padding: 25px 28px 28px; }
+}

@@ -1,0 +1,284 @@
+import './route-loader.mjs';
+import {DatabaseSync} from 'node:sqlite';
+import {readFileSync,readdirSync,globSync as fsGlob} from 'node:fs';
+import {test,beforeEach} from 'node:test';
+import assert from 'node:assert/strict';
+const sqlite=new DatabaseSync(':memory:');
+for(const file of readdirSync(new URL('../drizzle/',import.meta.url)).filter(x=>x.endsWith('.sql')).sort())sqlite.exec(readFileSync(new URL('../drizzle/'+file,import.meta.url),'utf8'));
+let queryCount=0;
+class Statement {
+ constructor(sql,args=[]){this.sql=sql;this.args=args;}
+ bind(...args){return new Statement(this.sql,args);}
+ async first(){queryCount++;return sqlite.prepare(this.sql).get(...this.args)??null;}
+ async all(){queryCount++;return {results:sqlite.prepare(this.sql).all(...this.args)};}
+ async run(){queryCount++;const r=sqlite.prepare(this.sql).run(...this.args);return {meta:{changes:Number(r.changes)}};}
+}
+const DB={prepare:sql=>new Statement(sql),async batch(statements){sqlite.exec('BEGIN');try{const r=[];for(const s of statements)r.push(await s.run());sqlite.exec('COMMIT');return r;}catch(e){sqlite.exec('ROLLBACK');throw e;}}};
+globalThis.__testEnv={DB,SITE_ORIGIN:'https://ministry.test',RATE_LIMIT_SALT:'test-only'};
+globalThis.__testHeaders=new Headers();
+const editor=await import('../app/api/editor/route.ts');
+const exports=await import('../app/api/editor/export/route.ts');
+const upload=await import('../app/api/upload/route.ts');
+const contact=await import('../app/api/contact/route.ts');
+const content=await import('../app/api/content/route.ts');
+const {publicContactPayload}=await import('../lib/contact-payload.ts');
+const {hash}=await import('../lib/security.ts');
+const {settingsGuard,saveSetting,clearGuard}=await import('../lib/write-sql.ts');
+function identity(role){globalThis.__testHeaders=new Headers(role?{'oai-authenticated-user-id':'test-user','oai-authenticated-user-email':'test@example.test'}:{});sqlite.prepare('DELETE FROM editors').run();if(role&&role!=='unlisted')sqlite.prepare('INSERT INTO editors VALUES (?,?,?,?)').run('test-user','test@example.test',role,'now');}
+function req(body,path='/api/editor',origin='https://ministry.test'){return new Request('https://ministry.test'+path,{method:'POST',headers:{Origin:origin,'Content-Type':'application/json'},body:JSON.stringify(body)});}
+const change=(key='home.heroHeading',value='Changed',version=0)=>({action:'settings',changes:[{key,value,version}]});
+const record=(id,slug)=>({action:'record',record:{id,kind:'article',title:'Test',slug,status:'draft',data:{body:'Text'},version:0}});
+const submission=(reason='visitor')=>({id:crypto.randomUUID(),reason,consent:true,data:reason==='visitor'?{firstName:'Test',email:'person@example.test'}:{message:'Private test prayer'},followUp:false});
+beforeEach(()=>{for(const t of ['settings','records','submissions','claims','editors','audit_events','write_guards','rate_limits','assets'])sqlite.exec('DELETE FROM '+t);identity(null);queryCount=0;globalThis.__testEnv.EDITOR_SETUP_HASH='';});
+for(const role of [null,'unlisted','viewer','unexpected'])test('private routes deny '+role,async()=>{
+ identity(role);
+ for(const response of [await editor.GET(new Request('https://ministry.test/api/editor')),await editor.POST(req(change())),await exports.GET(new Request('https://ministry.test/api/editor/export')),await upload.POST(req({},'/api/upload'))])assert.equal(response.status,403);
+ assert.equal(sqlite.prepare('SELECT count(*) n FROM settings').get().n,0);
+});
+test('ordinary editor edits content but cannot alter giving, intake or exports',async()=>{
+ identity('editor');assert.equal((await editor.POST(req(change()))).status,200);
+ for(const key of ['give.paymentUrl','give.bankName','give.accountName','give.accountNumber'])assert.equal((await editor.POST(req(change(key,'https://example.test')))).status,403);
+ assert.equal((await editor.POST(req({action:'delete-message',id:'other-person'}))).status,403);
+ assert.equal((await editor.POST(req({action:'message',id:'other-person',status:'Complete',assignee:'',followUp:'',notes:'',tags:[]}))).status,403);
+ assert.equal((await exports.GET(new Request('https://ministry.test/api/editor/export'))).status,403);
+});
+test('owner can save giving destination, with audit metadata only',async()=>{
+ identity('pastoral-owner');assert.equal((await editor.POST(req(change('give.paymentUrl','https://example.test/give')))).status,200);
+ const events=sqlite.prepare('SELECT * FROM audit_events').all();assert.equal(events.length,1);assert.equal(events[0].target,'give.paymentUrl');assert.ok(!JSON.stringify(events).includes('https://example.test'));
+});
+test('cross-origin owner write denied',async()=>{identity('pastoral-owner');assert.equal((await editor.POST(req(change(),'/api/editor','https://evil.test'))).status,403);});
+test('malformed and prototype-key requests return 400',async()=>{
+ identity('pastoral-owner');for(const body of [null,[],{},change('toString'),change('__proto__'),{action:'settings',changes:[null]},change('home.heroHeading','x',-1),{...record('a','valid'),record:{...record('a','valid').record,slug:12}}])assert.equal((await editor.POST(req(body))).status,400);
+ assert.equal((await contact.POST(req({...submission(),reason:'constructor'},'/api/contact'))).status,400);
+ assert.equal((await editor.POST(new Request('https://ministry.test/api/editor',{method:'POST',headers:{origin:'https://ministry.test','content-type':'application/json'},body:'{'}))).status,400);
+});
+test('settings conflict rolls back all fields and giving audit',async()=>{
+ identity('pastoral-owner');assert.equal((await editor.POST(req(change()))).status,200);
+ const r=await editor.POST(req({action:'settings',changes:[{key:'give.bankName',value:'New bank',version:0},{key:'home.heroHeading',value:'stale',version:0}]}));assert.equal(r.status,409);
+ assert.equal(sqlite.prepare("SELECT count(*) n FROM settings WHERE key='give.bankName'").get().n,0);assert.equal(sqlite.prepare('SELECT count(*) n FROM audit_events').get().n,0);
+});
+test('transaction guard also rejects a competing write after prior validation',async()=>{
+ sqlite.prepare('INSERT INTO settings VALUES (?,?,?,?)').run('a','other editor',2,'now');
+ await assert.rejects(DB.batch([DB.prepare(settingsGuard).bind('g',JSON.stringify([{key:'a',version:1},{key:'b',version:0}])),DB.prepare(saveSetting).bind('b','new','now'),DB.prepare(clearGuard).bind('g')]));
+ assert.equal(sqlite.prepare("SELECT count(*) n FROM settings WHERE key='b'").get().n,0);
+});
+test('SQL payload is stored as data and duplicate slug is rejected',async()=>{
+ identity('editor');assert.equal((await editor.POST(req(change('home.heroHeading',"x'); DROP TABLE records; --")))).status,200);
+ assert.equal((await editor.POST(req(record('first','same-address')))).status,200);assert.equal((await editor.POST(req(record('second','same-address')))).status,409);
+ assert.throws(()=>sqlite.prepare('INSERT INTO records VALUES (?,?,?,?,?,?,?,?)').run('second','article','t','same-address','draft','{}',1,'now'),/UNIQUE/);
+ assert.equal((await editor.POST(req(record('other','what-is-union-with-christ')))).status,409);
+});
+test('private prayer is excluded from editor content and normal export',async()=>{
+ const p=submission('prayer');assert.equal((await contact.POST(req(p,'/api/contact'))).status,200);
+ assert.equal(sqlite.prepare('SELECT confidential FROM submissions').get().confidential,1);
+ identity('editor');assert.deepEqual((await (await editor.GET(new Request('https://ministry.test/api/editor'))).json()).messages,[]);
+ identity('pastoral-owner');const text=await (await exports.GET(new Request('https://ministry.test/api/editor/export'))).text();assert.ok(!text.includes('Private test prayer'));
+});
+test('deletion requires existing record and commits audit atomically',async()=>{
+ const p=submission();await contact.POST(req(p,'/api/contact'));identity('pastoral-owner');
+ assert.equal((await editor.POST(req({action:'delete-message',id:p.id}))).status,200);
+ assert.equal(sqlite.prepare('SELECT count(*) n FROM submissions').get().n,0);assert.equal(sqlite.prepare('SELECT count(*) n FROM audit_events').get().n,1);
+ assert.equal((await editor.POST(req({action:'delete-message',id:p.id}))).status,404);assert.equal(sqlite.prepare('SELECT count(*) n FROM audit_events').get().n,1);
+});
+test('invalid calendar date fails and missing message returns 404',async()=>{
+ identity('pastoral-owner');const m={action:'message',id:'missing',status:'New',assignee:'',followUp:'2026-02-30',notes:'',tags:[]};assert.equal((await editor.POST(req(m))).status,400);assert.equal((await editor.POST(req({...m,followUp:''}))).status,404);
+});
+test('public retry creates one intake and precise response target',async()=>{
+ const p=submission();assert.equal((await contact.POST(req(p,'/api/contact'))).status,200);assert.equal((await contact.POST(req(p,'/api/contact'))).status,200);
+ const row=sqlite.prepare('SELECT * FROM submissions').get();assert.equal(sqlite.prepare('SELECT count(*) n FROM submissions').get().n,1);assert.ok(Math.abs((Date.parse(row.response_due_at)-Date.parse(row.created_at))-24*3600000)<=25);assert.equal(row.follow_up,'');
+});
+test('public content contains no drafts',async()=>{
+ identity('editor');await editor.POST(req(record('test-draft','test-draft')));identity(null);const data=await(await content.GET()).json();assert.ok(data.records.every(r=>r.status==='published'));assert.ok(!data.records.some(r=>r.id==='test-draft'));
+});
+test('claim requires identity and setup token; cannot replace owner',async()=>{
+ globalThis.__testEnv.EDITOR_SETUP_HASH=await hash('test-setup');assert.equal((await editor.POST(req({action:'claim',token:'test-setup'}))).status,401);
+ identity('unlisted');assert.equal((await editor.POST(req({action:'claim',token:'wrong'}))).status,403);assert.equal((await editor.POST(req({action:'claim',token:'test-setup'}))).status,200);
+ globalThis.__testHeaders=new Headers({'oai-authenticated-user-id':'other-user','oai-authenticated-user-email':'other@example.test'});assert.equal((await editor.POST(req({action:'claim',token:'test-setup'}))).status,403);
+});
+test('unpublishing a seeded article cannot expose its default text',async()=>{
+ const {defaultRecords}=await import('../lib/defaults.ts');const seed=defaultRecords.find(r=>r.kind==='article'&&r.status==='published');assert.ok(seed);
+ identity('editor');assert.equal((await editor.POST(req({action:'record',record:{...seed,status:'draft',version:0}}))).status,200);
+ identity(null);const c=await (await content.GET()).json();assert.ok(!c.records.some(r=>r.id===seed.id));
+});
+test('multi-field save does not query each setting version',async()=>{
+ identity('editor');queryCount=0;const changes=['home.heroHeading','home.heroIntro','home.pathsHeading','home.pathsIntro'].map(key=>({key,value:'Test',version:0}));
+ assert.equal((await editor.POST(req({action:'settings',changes}))).status,200);
+ // One membership read, guard, four writes, guard cleanup. No per-field SELECT.
+ assert.equal(queryCount,7);
+});
+test('every API route is classified; private handlers use the shared guard',()=>{
+ const {globSync}=requireFs();
+ const files=[...globSync('app/api/**/route.ts')].sort();
+ assert.deepEqual(files,['app/api/assets/[id]/route.ts','app/api/contact/route.ts','app/api/content/route.ts','app/api/editor/export/route.ts','app/api/editor/route.ts','app/api/upload/route.ts'].sort());
+ for(const file of files.filter(f=>f.includes('/editor/')||f==='app/api/upload/route.ts'))assert.match(readFileSync(file,'utf8'),/protectedRoute\(/);
+});
+function requireFs(){return {globSync:fsGlob};}
+
+test('all public form pathways reach the protected pastoral workflow',async()=>{
+ const {routing}=await import('../lib/defaults.ts');
+ const cases=[
+  {reason:'visitor',data:{firstName:'Journey Visitor',email:'visitor@example.test',campus:'Baguio',thisSunday:'Yes',children:'Yes',message:'Please help me prepare.'},team:'Connect Team',confidential:0},
+  {reason:'prayer',data:{firstName:'Journey Prayer',message:'SYNTHETIC_PRIVATE_PRAYER'},team:'Pastoral Team',confidential:1,followUp:false},
+  {reason:'house',data:{firstName:'Journey House',email:'house@example.test',campus:'Baguio',message:'I would like a group.'},team:'House Church Coordinator',confidential:0},
+  {reason:'discipleship',data:{firstName:'Journey Discipleship',email:'discipleship@example.test',campus:'Baguio',interest:'Pastoral care',message:'I would like a conversation.'},team:'Pastoral Team',confidential:1},
+  {reason:'college',data:{firstName:'Journey College',email:'college@example.test',contactMethod:'Email',message:'Please send program information.'},team:'ELC Admin',confidential:0},
+  {reason:'partnership',data:{firstName:'Journey Partnership',email:'partner@example.test',message:'We would like to explore partnership.'},team:'WPMN Leadership',confidential:0},
+  {reason:'giving',data:{firstName:'Journey Giving',email:'giving@example.test',givingHelp:'Partnership',contactMethod:'Email',message:'Please explain approved options.'},team:'WPMN Leadership',confidential:0},
+  {reason:'general',data:{firstName:'Journey General',email:'general@example.test',subject:'Question',message:'This is a synthetic journey test.'},team:'Admin / Connect Team',confidential:0}
+ ];
+ for(const item of cases){
+  const body=publicContactPayload({id:crypto.randomUUID(),reason:item.reason,data:item.data,followUp:item.followUp??true,consent:true,startedAt:Date.now()});
+  assert.equal((await contact.POST(req(body,'/api/contact'))).status,200,item.reason);
+  sqlite.exec('DELETE FROM rate_limits');
+ }
+ const rows=sqlite.prepare('SELECT * FROM submissions ORDER BY category').all();
+ assert.equal(rows.length,cases.length);
+ for(const item of cases){
+  const row=rows.find(candidate=>candidate.category===item.reason);
+  assert.ok(row,item.reason);
+  assert.equal(row.team,item.team,item.reason);
+  assert.equal(row.confidential,item.confidential,item.reason);
+  assert.equal(row.status,'New',item.reason);
+  assert.ok(Math.abs((Date.parse(row.response_due_at)-Date.parse(row.created_at))-routing[item.reason].hours*3600000)<=25,item.reason);
+  assert.equal(JSON.parse(row.payload).privacyConsent,true,item.reason);
+ }
+ const visitor=rows.find(row=>row.category==='visitor');
+ const visitorTags=JSON.parse(visitor.tags);
+ assert.ok(visitorTags.includes('New Visitor'));
+ assert.ok(visitorTags.includes('Campus: Baguio'));
+ assert.ok(visitorTags.includes('Children Attending'));
+ assert.ok(visitorTags.includes('Sunday Visit Planned'));
+ identity('pastoral-owner');
+ const inbox=await (await editor.GET(new Request('https://ministry.test/api/editor'))).json();
+ assert.equal(inbox.messages.length,cases.length);
+ assert.ok(inbox.messages.some(message=>message.category==='prayer'&&message.confidential===1));
+ const nextTags=[...visitorTags,'First Visit','Fast Track Assessment'];
+ assert.equal((await editor.POST(req({action:'message',id:visitor.id,status:'Follow-up scheduled',assignee:'Test Connector',followUp:'2026-10-01',notes:'Synthetic journey test only',tags:nextTags}))).status,200);
+ const progressed=sqlite.prepare('SELECT status,assignee,follow_up,notes,tags FROM submissions WHERE id=?').get(visitor.id);
+ assert.equal(progressed.status,'Follow-up scheduled');
+ assert.equal(progressed.assignee,'Test Connector');
+ assert.equal(progressed.follow_up,'2026-10-01');
+ assert.ok(JSON.parse(progressed.tags).includes('Fast Track Assessment'));
+ const exported=await (await exports.GET(new Request('https://ministry.test/api/editor/export'))).text();
+ assert.match(exported,/Journey Visitor/);
+ assert.doesNotMatch(exported,/SYNTHETIC_PRIVATE_PRAYER/);
+ assert.doesNotMatch(exported,/Journey Discipleship/);
+});
+
+test('server alone controls confidentiality for the exact public form payload',async()=>{
+ const formPayload=publicContactPayload({id:crypto.randomUUID(),reason:'prayer',data:{message:'Private test'},followUp:false,consent:true,startedAt:Date.now()});
+ assert.deepEqual(Object.keys(formPayload).sort(),['consent','data','followUp','id','reason','startedAt']);
+ assert.equal((await contact.POST(req({...formPayload,confidential:false},'/api/contact'))).status,400);
+ assert.equal(sqlite.prepare('SELECT count(*) n FROM submissions').get().n,0);
+ assert.equal((await contact.POST(req(formPayload,'/api/contact'))).status,200);
+ assert.equal(sqlite.prepare('SELECT confidential FROM submissions').get().confidential,1);
+});
+
+test('form validation blocks unusable follow-up requests',async()=>{
+ const invalid=[
+  {id:crypto.randomUUID(),reason:'visitor',consent:true,data:{firstName:'No Contact'}},
+  {id:crypto.randomUUID(),reason:'prayer',consent:true,data:{message:'Follow up without contact'},followUp:true},
+  {id:crypto.randomUUID(),reason:'college',consent:true,data:{firstName:'No Email',phone:'09170000000',contactMethod:'Email',message:'Information please'}}
+ ];
+ for(const body of invalid)assert.equal((await contact.POST(req(body,'/api/contact'))).status,400);
+ assert.equal(sqlite.prepare('SELECT count(*) n FROM submissions').get().n,0);
+});
+
+test('every published teaching resource has one safe ministry next step',async()=>{
+ const {defaultRecords,resourceNextSteps}=await import('../lib/defaults.ts');
+ const {safeInternalPath}=await import('../lib/store.ts');
+ const published=defaultRecords.filter(r=>['article','series','sermon'].includes(r.kind)&&r.status==='published');
+ assert.equal(published.length,6);
+ for(const record of published){
+  const expected=resourceNextSteps[record.kind+':'+record.slug];
+  assert.ok(expected,record.slug);
+  assert.equal(record.data.nextStepLabel,expected.label,record.slug);
+  assert.equal(record.data.nextStepUrl,expected.url,record.slug);
+  assert.equal(safeInternalPath(record.data.nextStepUrl),record.data.nextStepUrl,record.slug);
+ }
+ const unfinished=defaultRecords.find(r=>r.id==='sermon-old-record');
+ assert.equal(unfinished.status,'draft');
+ identity(null);
+ const publicData=await (await content.GET()).json();
+ assert.ok(!publicData.records.some(r=>r.id==='sermon-old-record'));
+ assert.equal(safeInternalPath('https://example.test/leave'),'');
+ assert.equal(safeInternalPath('//example.test/leave'),'');
+ assert.equal(safeInternalPath('/safe\\escape'),'');
+});
+
+test('approved Article 1 is publicly available with its real next step',async()=>{
+ const {defaultRecords}=await import('../lib/defaults.ts');
+ const {getContent}=await import('../lib/store.ts');
+ const draft=defaultRecords.find(r=>r.slug==='why-the-gospel-is-about-what-christ-has-done');
+ assert.equal(draft.status,'published');
+ assert.match(draft.data.body,/1 Corinthians 15:1-4/);
+ assert.ok(draft.data.body.length>2000);
+ assert.equal(draft.data.nextStepLabel,'Read about the finished work of Christ');
+ assert.equal(draft.data.nextStepUrl,'/articles/what-is-the-finished-work-of-christ');
+ identity(null);
+ const publicData=await (await content.GET()).json();
+ assert.ok(publicData.records.some(r=>r.id===draft.id));
+ const privateData=await getContent(true);
+ assert.ok(privateData.records.some(r=>r.id===draft.id));
+});
+
+test('editor rejects incomplete or external resource next steps',async()=>{
+ identity('editor');
+ const base=record('next-step-test','next-step-test');
+ const incomplete={...base,record:{...base.record,data:{...base.record.data,nextStepLabel:'Continue learning'}}};
+ const external={...base,record:{...base.record,id:'external-step',slug:'external-step',data:{...base.record.data,nextStepLabel:'Leave the site',nextStepUrl:'https://example.test'}}};
+ assert.equal((await editor.POST(req(incomplete))).status,400);
+ assert.equal((await editor.POST(req(external))).status,400);
+ assert.equal(sqlite.prepare('SELECT count(*) n FROM records').get().n,0);
+});
+
+test('a sermon cannot publish without a safe next step and survives the public read',async()=>{
+ identity('editor');
+ const sermon={action:'record',record:{id:'published-sermon',kind:'sermon',title:'Published test sermon',slug:'published-test-sermon',status:'published',data:{excerpt:'Synthetic test only',transcript:'Synthetic reviewed transcript.'},version:0}};
+ assert.equal((await editor.POST(req(sermon))).status,400);
+ sermon.record.data.nextStepLabel='Continue into discipleship';
+ sermon.record.data.nextStepUrl='/discipleship';
+ assert.equal((await editor.POST(req(sermon))).status,200);
+ identity(null);
+ const publicData=await (await content.GET()).json();
+ const saved=publicData.records.find(r=>r.id==='published-sermon');
+ assert.ok(saved);
+ assert.equal(saved.data.nextStepLabel,'Continue into discipleship');
+ assert.equal(saved.data.nextStepUrl,'/discipleship');
+});
+
+test('legacy published teaching can still be corrected before its next-step backfill',async()=>{
+ sqlite.prepare('INSERT INTO records VALUES (?,?,?,?,?,?,?,?)').run('legacy-article','article','Legacy article','legacy-article','published',JSON.stringify({body:'Reviewed legacy body.'}),1,'now');
+ identity('editor');
+ const legacy={action:'record',record:{id:'legacy-article',kind:'article',title:'Corrected legacy article',slug:'legacy-article',status:'published',data:{body:'Reviewed legacy body.'},version:1}};
+ assert.equal((await editor.POST(req(legacy))).status,200);
+ const saved=sqlite.prepare('SELECT title,status,data FROM records WHERE id=?').get('legacy-article');
+ assert.equal(saved.title,'Corrected legacy article');
+ assert.equal(saved.status,'published');
+ assert.equal(JSON.parse(saved.data).nextStepUrl,undefined);
+});
+
+test('legacy published sermon can still be corrected before its next-step backfill',async()=>{
+ sqlite.prepare('INSERT INTO records VALUES (?,?,?,?,?,?,?,?)').run('legacy-sermon','sermon','Legacy sermon','legacy-sermon','published',JSON.stringify({transcript:'Reviewed legacy transcript.'}),1,'now');
+ identity('editor');
+ const legacy={action:'record',record:{id:'legacy-sermon',kind:'sermon',title:'Corrected legacy sermon',slug:'legacy-sermon',status:'published',data:{transcript:'Reviewed legacy transcript.'},version:1}};
+ assert.equal((await editor.POST(req(legacy))).status,200);
+ const saved=sqlite.prepare('SELECT title,status,data FROM records WHERE id=?').get('legacy-sermon');
+ assert.equal(saved.title,'Corrected legacy sermon');
+ assert.equal(saved.status,'published');
+ assert.equal(JSON.parse(saved.data).nextStepUrl,undefined);
+});
+
+test('legacy series keeps its old next teaching until the new next step replaces it',async()=>{
+ sqlite.prepare('INSERT INTO records VALUES (?,?,?,?,?,?,?,?)').run('legacy-series','series','Legacy series','legacy-series','published',JSON.stringify({body:'Reviewed series body.',nextTeaching:'/articles/what-is-union-with-christ'}),1,'now');
+ identity('editor');
+ const legacy={action:'record',record:{id:'legacy-series',kind:'series',title:'Corrected legacy series',slug:'legacy-series',status:'published',data:{body:'Reviewed series body.'},version:1}};
+ assert.equal((await editor.POST(req(legacy))).status,200);
+ let saved=JSON.parse(sqlite.prepare('SELECT data FROM records WHERE id=?').get('legacy-series').data);
+ assert.equal(saved.nextTeaching,'/articles/what-is-union-with-christ');
+ const backfilled={...legacy,record:{...legacy.record,version:2,data:{body:'Reviewed series body.',nextStepLabel:'Continue with union in Christ',nextStepUrl:'/articles/what-is-union-with-christ'}}};
+ assert.equal((await editor.POST(req(backfilled))).status,200);
+ saved=JSON.parse(sqlite.prepare('SELECT data FROM records WHERE id=?').get('legacy-series').data);
+ assert.equal(saved.nextStepUrl,'/articles/what-is-union-with-christ');
+ assert.equal(saved.nextTeaching,undefined);
+});
