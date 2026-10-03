@@ -2,7 +2,7 @@ name: Website security tests
 
 on:
   pull_request:
-    branches: [sites-wpmn-ecf]
+    branches: [main, sites-wpmn-ecf]
     paths:
       - 'wpmn-ecf-website/**'
       - '.github/workflows/website-security-tests.yml'
