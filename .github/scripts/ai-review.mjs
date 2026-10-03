@@ -1,3 +1,4 @@
+import {completeDiff,changedRightLines,reviewBatches,validateReview} from './review-diff.mjs';
 const repository = process.env.GITHUB_REPOSITORY;
 const pullNumber = Number(process.env.PR_NUMBER);
 const token = process.env.GITHUB_TOKEN;
@@ -22,7 +23,7 @@ async function github(path, init = {}) {
     headers: {...githubHeaders, ...(init.headers || {})},
   });
   if (!response.ok) {
-    throw new Error(`GitHub ${init.method || 'GET'} ${path} failed: ${response.status} ${await response.text()}`);
+    throw new Error(`GitHub ${init.method || 'GET'} ${path} failed: ${response.status} [response body omitted]`);
   }
   return response.status === 204 ? null : response.json();
 }
@@ -37,25 +38,6 @@ async function listFiles() {
   }
 }
 
-function changedRightLines(patch = '') {
-  const lines = new Set();
-  let right = 0;
-  for (const line of patch.split('\n')) {
-    const hunk = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@/.exec(line);
-    if (hunk) {
-      right = Number(hunk[1]);
-      continue;
-    }
-    if (line.startsWith('+') && !line.startsWith('+++')) {
-      lines.add(right);
-      right += 1;
-    } else if (!line.startsWith('-') && !line.startsWith('\\')) {
-      right += 1;
-    }
-  }
-  return lines;
-}
-
 async function postFailure(message) {
   await github(`/repos/${owner}/${repo}/issues/${pullNumber}/comments`, {
     method: 'POST',
@@ -68,43 +50,9 @@ try {
   if (pull.head.sha !== expectedHead) throw new Error('The pull request head changed before review began. Re-run on the latest commit.');
   if (!apiKey) throw new Error('Repository secret OPENAI_API_KEY is not configured.');
 
-  const files = await listFiles();
-  const codeExtensions = /\.(?:[cm]?[jt]sx?|sql|json|ya?ml|toml|css|html)$/i;
-  const missingCodePatches = files.filter(file => codeExtensions.test(file.filename) && !file.patch);
-  if (missingCodePatches.length) {
-    throw new Error(`GitHub omitted reviewable patches for: ${missingCodePatches.map(file => file.filename).join(', ')}`);
-  }
-
-  const diffEntries = files.map(file => [
-    `FILE ${file.filename}`,
-    `STATUS ${file.status} +${file.additions} -${file.deletions}`,
-    file.patch || '[Binary or non-code file; content unavailable]',
-  ].join('\n'));
-  const totalDiffLength = diffEntries.reduce((total, entry) => total + entry.length + 2, 0);
-  const maxBatchCharacters = 120_000;
-  const maxTotalCharacters = 1_000_000;
-  if (totalDiffLength > maxTotalCharacters) {
-    throw new Error(`Diff is ${totalDiffLength} characters, above the complete-review limit of ${maxTotalCharacters}. Split the pull request into smaller changes.`);
-  }
-
-  const diffBatches = [];
-  let currentBatch = [];
-  let currentLength = 0;
-  for (const entry of diffEntries) {
-    if (entry.length > maxBatchCharacters) {
-      throw new Error(`File patch is ${entry.length} characters, above the per-file review limit of ${maxBatchCharacters}. Split that file change into a smaller pull request.`);
-    }
-    const separatorLength = currentBatch.length ? 2 : 0;
-    if (currentBatch.length && currentLength + separatorLength + entry.length > maxBatchCharacters) {
-      diffBatches.push(currentBatch.join('\n\n'));
-      currentBatch = [];
-      currentLength = 0;
-    }
-    currentBatch.push(entry);
-    currentLength += (currentBatch.length > 1 ? 2 : 0) + entry.length;
-  }
-  if (currentBatch.length) diffBatches.push(currentBatch.join('\n\n'));
-  if (!diffBatches.length) throw new Error('Pull request contains no reviewable diff.');
+  const baseSha = pull.base.sha;
+  const files = completeDiff(await listFiles(), {baseSha, headSha: expectedHead});
+  const diffBatches = reviewBatches(files);
 
   const sensitive = files.filter(file => /(?:auth|security|editor|payment|giving|checkout|submission|delete|migration|schema|\.github\/workflows)/i.test(file.filename)).map(file => file.filename);
   const schema = {
@@ -144,7 +92,7 @@ try {
       body: JSON.stringify({
         model,
         instructions,
-        input: `Repository: ${repository}\nPull request: ${pullNumber}\nHead SHA: ${expectedHead}\nBatch: ${index + 1} of ${diffBatches.length}\n\nCHANGED FILE MANIFEST\n${fileManifest}\n\nReview every file in this batch. The remaining files are reviewed in separate batches; do not report success or failure for files not shown here.\n\nUNTRUSTED DIFF BATCH BEGINS\n${diffBatches[index]}\nUNTRUSTED DIFF BATCH ENDS`,
+        input: `Repository: ${repository}\nPull request: ${pullNumber}\nHead SHA: ${expectedHead}\nBatch: ${index + 1} of ${diffBatches.length}\n\nCHANGED FILE MANIFEST\n${fileManifest}\n\nReview every file part in this batch. A large file can span batches; RIGHT and LEFT labels give actual source line numbers. Binary files are represented by Git metadata only, not reviewed binary contents. The remaining files are reviewed in separate batches; do not report success or failure for files not shown here.\n\nUNTRUSTED DIFF BATCH BEGINS\n${diffBatches[index]}\nUNTRUSTED DIFF BATCH ENDS`,
         text: {format: {type: 'json_schema', name: 'production_review', strict: true, schema}},
       }),
     });
@@ -154,10 +102,7 @@ try {
     const payload = await response.json();
     const outputText = payload.output_text || payload.output?.flatMap(item => item.content || []).find(item => item.type === 'output_text')?.text;
     if (!outputText) throw new Error(`OpenAI returned no structured review text for batch ${index + 1}.`);
-    const batchReview = JSON.parse(outputText);
-    if (!Array.isArray(batchReview.findings) || typeof batchReview.summary !== 'string') {
-      throw new Error(`OpenAI returned an invalid review for batch ${index + 1}.`);
-    }
+    const batchReview = validateReview(JSON.parse(outputText));
     batchReviews.push(batchReview);
   }
   const review = {
@@ -166,7 +111,7 @@ try {
   };
 
   const latest = await github(`/repos/${owner}/${repo}/pulls/${pullNumber}`);
-  if (latest.head.sha !== expectedHead) throw new Error('The pull request changed during review. Re-run on the latest commit.');
+  if (latest.head.sha !== expectedHead || latest.base.sha !== baseSha) throw new Error('The pull request or target changed during review. Re-run on the latest commit.');
 
   const fileMap = new Map(files.map(file => [file.filename, changedRightLines(file.patch)]));
   const comments = [];

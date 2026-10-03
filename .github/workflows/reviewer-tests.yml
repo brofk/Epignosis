@@ -1,0 +1,26 @@
+name: Reviewer tests
+on:
+  pull_request:
+    paths:
+      - '.github/scripts/**'
+      - '.github/workflows/ai-production-review.yml'
+      - '.github/workflows/reviewer-tests.yml'
+  push:
+    paths:
+      - '.github/scripts/**'
+      - '.github/workflows/reviewer-tests.yml'
+permissions:
+  contents: read
+jobs:
+  tests:
+    name: Reviewer tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24.19.0'
+      - run: node --test .github/scripts/review-diff.test.mjs
