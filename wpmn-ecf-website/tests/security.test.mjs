@@ -316,3 +316,52 @@ test('upload cleans stored object if database persistence fails',async()=>{
   assert.equal(response.status,503);assert.ok(stored);assert.equal(removed,stored);assert.ok(!(await response.text()).includes('PRIVATE_DETAIL'));
  }finally{globalThis.__testEnv.DB=originalDB;delete globalThis.__testEnv.BUCKET;}
 });
+
+test('contact stores validated visitor language and time zone without shifting visit dates',async()=>{
+ const p=submission();p.data={...p.data,locale:'en-IN',preferredLanguage:'Hindi',timeZone:'Asia/Kolkata',visitDate:'2026-10-05'};
+ assert.equal((await contact.POST(req(p,'/api/contact'))).status,200);
+ const saved=JSON.parse(sqlite.prepare('SELECT payload FROM submissions WHERE id=?').get(p.id).payload);
+ assert.equal(saved.locale,'en-IN');assert.equal(saved.preferredLanguage,'Hindi');assert.equal(saved.timeZone,'Asia/Kolkata');assert.equal(saved.visitDate,'2026-10-05');
+ for(const invalid of [{locale:'invalid_locale'},{timeZone:'Central time'},{visitDate:'2026-02-30'}]){
+  assert.equal((await contact.POST(req({...p,id:crypto.randomUUID(),data:{...p.data,...invalid}},'/api/contact'))).status,400);
+ }
+ assert.equal(sqlite.prepare('SELECT count(*) n FROM submissions').get().n,1);
+});
+test('dynamic sitemap updates saved slugs and excludes unpublished/private paths',async()=>{
+ const {default:sitemap}=await import('../app/sitemap.ts');
+ identity('editor');const r=record('sitemap-synthetic','sitemap-before');r.record.status='published';r.record.data={body:'Synthetic approved fixture',nextStepLabel:'Visit',nextStepUrl:'/visit'};
+ assert.equal((await editor.POST(req(r))).status,200);
+ let urls=(await sitemap()).map(x=>x.url);assert.ok(urls.includes('https://ministry.test/articles/sitemap-before'));
+ r.record.slug='sitemap-after';r.record.version=1;assert.equal((await editor.POST(req(r))).status,200);
+ urls=(await sitemap()).map(x=>x.url);assert.ok(!urls.some(x=>x.endsWith('/sitemap-before')));assert.ok(urls.some(x=>x.endsWith('/sitemap-after')));
+ r.record.status='draft';r.record.version=2;assert.equal((await editor.POST(req(r))).status,200);
+ urls=(await sitemap()).map(x=>x.url);assert.ok(!urls.some(x=>x.includes('sitemap-after')));assert.ok(!urls.some(x=>x.includes('/editor')||x.includes('/api/')));
+});
+
+
+test('event times retain an explicit valid zone and reject impossible dates',async()=>{
+ identity('editor');const r=record('international-event','international-event');r.record.kind='event';r.record.status='published';r.record.data={date:'2026-10-05',time:'10:00',timeZone:'Africa/Accra',location:'Synthetic gathering'};
+ assert.equal((await editor.POST(req(r))).status,200);
+ assert.equal(JSON.parse(sqlite.prepare('SELECT data FROM records WHERE id=?').get(r.record.id).data).timeZone,'Africa/Accra');
+ for(const invalid of [{timeZone:'Ghana time'},{date:'2026-02-30'}]){r.record.version=1;assert.equal((await editor.POST(req({...r,record:{...r.record,data:{...r.record.data,...invalid}}}))).status,400);}
+});
+
+
+test('a changed request cannot reuse a previous successful submission ID',async()=>{
+ const p=submission();assert.equal((await contact.POST(req(p,'/api/contact'))).status,200);
+ assert.equal((await contact.POST(req({...p,data:{...p.data,message:'Changed message'}},'/api/contact'))).status,409);
+ assert.equal((await contact.POST(req({...p,reason:'partnership',data:{...p.data,message:'Synthetic partnership'}},'/api/contact'))).status,409);
+ assert.equal((await contact.POST(req(p,'/api/contact'))).status,200);
+ assert.equal(sqlite.prepare('SELECT count(*) n FROM submissions').get().n,1);
+ const prayer=submission('prayer');prayer.data.email='prayer@example.test';prayer.followUp=false;await contact.POST(req(prayer,'/api/contact'));
+ assert.equal((await contact.POST(req({...prayer,followUp:true},'/api/contact'))).status,409);
+});
+
+
+test('retry treats omitted and empty optional strings alike and ignores server consent metadata',async()=>{
+ const p=submission();await contact.POST(req(p,'/api/contact'));
+ assert.equal((await contact.POST(req({...p,data:{...p.data,lastName:'',locale:'',timeZone:''}},'/api/contact'))).status,200);
+ const row=sqlite.prepare('SELECT payload FROM submissions WHERE id=?').get(p.id);const saved=JSON.parse(row.payload);saved.consentedAt='2026-10-01T00:00:00Z';saved.unrelatedServerMetadata=true;
+ sqlite.prepare('UPDATE submissions SET payload=? WHERE id=?').run(JSON.stringify(saved),p.id);
+ assert.equal((await contact.POST(req(p,'/api/contact'))).status,200);
+});

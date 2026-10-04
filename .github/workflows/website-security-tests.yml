@@ -65,3 +65,7 @@ jobs:
         run: node node_modules/typescript/bin/tsc --noEmit
       - name: Build production site
         run: npm run build
+      - name: Install browser test runtime
+        run: pnpm exec playwright install chromium --with-deps --only-shell
+      - name: Browser journeys in Indian and Ghanaian locales
+        run: npm run test:browser

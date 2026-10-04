@@ -8,8 +8,24 @@ export function migrationChecksum(sql){
  return createHash('sha256').update(sql).digest('hex');
 }
 
+// Parse statement boundaries outside SQLite quotes/comments. Trigger bodies are
+// deliberately unsupported here because they contain nested statements.
 export function splitMigration(sql){
- return sql.split('--> statement-breakpoint').map(statement=>statement.trim()).filter(Boolean);
+ const statements=[];let current='',quote='',comment='';
+ for(let i=0;i<sql.length;i++){
+  const c=sql[i],next=sql[i+1];
+  if(comment==='line'){if(c==='\n'){comment='';current+=' ';}continue;}
+  if(comment==='block'){if(c==='*'&&next==='/'){comment='';current+=' ';i++;}continue;}
+  if(quote){current+=c;if(c===quote){if(next===quote&&quote!==']'){current+=next;i++;}else quote='';}continue;}
+  if(c==='-'&&next==='-'){comment='line';i++;continue;}
+  if(c==='/'&&next==='*'){comment='block';i++;continue;}
+  if(c==="'"||c==='"'||c==='`'||c==='['){quote=c==='['?']':c;current+=c;continue;}
+  if(c===';'){if(current.trim())statements.push(current.trim());current='';}else current+=c;
+ }
+ if(quote||comment==='block')throw new Error('Unterminated migration quote or comment');
+ if(current.trim())statements.push(current.trim());
+ if(statements.some(s=>/^CREATE\s+(?:TEMP(?:ORARY)?\s+)?TRIGGER\b/i.test(s)))throw new Error('Triggers are unsupported by the transaction-safe harness');
+ return statements;
 }
 
 export function listMigrationFiles(directory){

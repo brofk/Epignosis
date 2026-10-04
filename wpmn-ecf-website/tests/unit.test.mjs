@@ -103,3 +103,29 @@ test('protected handlers reject signed-out and unauthorized users before mutatio
  assert.equal(await security.rateLimit(new Request('https://ministry.test'),'test',1),true);assert.equal(await security.rateLimit(new Request('https://ministry.test'),'test',1),false);
  delete globalThis.__testEnv.DB;globalThis.__testHeaders=new Headers();
 });
+
+test('international formatting keeps calendar dates stable and converts actual instants',()=>{
+ const locale=modules['locale.ts'];
+ assert.equal(locale.validLocale('en-IN'),true);assert.equal(locale.validLocale('invalid_locale'),false);
+ assert.equal(locale.validTimeZone('Asia/Kolkata'),true);assert.equal(locale.validTimeZone('American central'),false);
+ assert.equal(locale.validCalendarDate('2028-02-29'),true);assert.equal(locale.validCalendarDate('2026-02-30'),false);
+ assert.equal(locale.formatDateOnly('2026-10-05','en-IN'),'5 October 2026');
+ assert.equal(locale.formatDateOnly('2026-10-05','en-US'),'October 5, 2026');
+ assert.equal(locale.formatDateOnly('Next Sunday','en-IN'),'Next Sunday');
+ assert.match(locale.formatInstant('2026-10-05T00:00:00Z','en-GB','Asia/Kolkata'),/05:30/);
+ assert.match(locale.formatInstant('2026-10-05T00:00:00Z','en-GB','Europe/London'),/01:00/);
+ assert.equal(locale.formatInstant('2026-10-05T00:00:00','en-GB','Asia/Kolkata'),'2026-10-05T00:00:00');
+ assert.match(locale.formatInstant('2026-10-05T00:00:00Z','invalid_locale','bad-zone'),/12:00 AM/);
+ assert.ok(locale.validTimeZone(locale.browserPreferences().timeZone));
+});
+
+
+const locale=await import('../lib/locale.ts');
+test('unavailable browser date/time detection keeps forms and raw dates usable',()=>{
+ const original=Intl.DateTimeFormat;
+ try{Intl.DateTimeFormat=function(){throw new Error('Unsupported runtime');};
+  assert.equal(locale.browserPreferences().timeZone,'UTC');
+  assert.equal(locale.formatDateOnly('2026-10-05','en'),'2026-10-05');
+  assert.equal(locale.formatInstant('2026-10-05T00:00:00Z','en','Asia/Manila'),'2026-10-05T00:00:00Z');
+ }finally{Intl.DateTimeFormat=original;}
+});
