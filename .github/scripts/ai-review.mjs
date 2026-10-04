@@ -3,7 +3,8 @@ const repository = process.env.GITHUB_REPOSITORY;
 const pullNumber = Number(process.env.PR_NUMBER);
 const token = process.env.GITHUB_TOKEN;
 const apiKey = process.env.OPENAI_API_KEY;
-const model = process.env.OPENAI_REVIEW_MODEL || 'gpt-5.4';
+import {selectRoute, cacheKey, recordUsage} from './ai-cost.mjs';
+let model;
 const expectedHead = process.env.PR_HEAD_SHA;
 
 if (!repository || !pullNumber || !token || !expectedHead) {
@@ -53,6 +54,9 @@ try {
   const baseSha = pull.base.sha;
   const files = completeDiff(await listFiles(), {baseSha, headSha: expectedHead});
   const diffBatches = reviewBatches(files);
+  const route = selectRoute(files);
+  model = route.model;
+  console.log(`Review route: ${route.lane}; model: ${model}; ${route.reason}`);
 
   const sensitive = files.filter(file => /(?:auth|security|editor|payment|giving|checkout|submission|delete|migration|schema|\.github\/workflows)/i.test(file.filename)).map(file => file.filename);
   const schema = {
@@ -86,20 +90,30 @@ try {
   const batchReviews = [];
   const fileManifest = files.map(file => file.filename).join('\n');
   for (let index = 0; index < diffBatches.length; index += 1) {
+    const metadata = {provider: 'openai', workflow: 'ai-production-review', model, lane: route.lane,
+      repository, runId: process.env.GITHUB_RUN_ID || 'local', attempt: process.env.GITHUB_RUN_ATTEMPT || '1',
+      headSha: expectedHead, pullNumber, batch: index + 1};
+    recordUsage({}, {...metadata, status: 'started'});
     const response = await fetch('https://api.openai.com/v1/responses', {
       method: 'POST',
       headers: {'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}`},
       body: JSON.stringify({
         model,
+        store: false,
+        prompt_cache_key: cacheKey(repository, instructions, {schema, fileManifest}),
+        max_output_tokens: 12000,
         instructions,
-        input: `Repository: ${repository}\nPull request: ${pullNumber}\nHead SHA: ${expectedHead}\nBatch: ${index + 1} of ${diffBatches.length}\n\nCHANGED FILE MANIFEST\n${fileManifest}\n\nReview every file part in this batch. A large file can span batches; RIGHT and LEFT labels give actual source line numbers. Binary files are represented by Git metadata only, not reviewed binary contents. The remaining files are reviewed in separate batches; do not report success or failure for files not shown here.\n\nUNTRUSTED DIFF BATCH BEGINS\n${diffBatches[index]}\nUNTRUSTED DIFF BATCH ENDS`,
+        input: `CHANGED FILE MANIFEST\n${fileManifest}\n\nReview every file part in this batch. A large file can span batches; RIGHT and LEFT labels give actual source line numbers. Binary files are represented by Git metadata only, not reviewed binary contents. The remaining files are reviewed in separate batches; do not report success or failure for files not shown here.\n\nUNTRUSTED DIFF BATCH BEGINS\n${diffBatches[index]}\nUNTRUSTED DIFF BATCH ENDS\n\nREQUEST IDENTITY\nRepository: ${repository}\nPull request: ${pullNumber}\nHead SHA: ${expectedHead}\nBatch: ${index + 1} of ${diffBatches.length}`,
         text: {format: {type: 'json_schema', name: 'production_review', strict: true, schema}},
       }),
-    });
+    }).catch(error => { recordUsage({}, {...metadata, status: 'transport-error'}); throw new Error('OpenAI transport failed; usage unknown.'); });
     if (!response.ok) {
+      recordUsage({}, {...metadata, status: `http-${response.status}`});
       throw new Error(`OpenAI review batch ${index + 1} failed with HTTP ${response.status}. Check the repository API key, API billing, model access, and OpenAI service status.`);
     }
-    const payload = await response.json();
+    const payload = await response.json().catch(() => { recordUsage({}, {...metadata, status: 'invalid-json'}); throw new Error('OpenAI response was not valid JSON; usage unknown.'); });
+    recordUsage(payload, {...metadata, status: payload.status || 'unknown'});
+    if (payload.status !== 'completed') throw new Error(`OpenAI review batch ${index + 1} did not complete.`);
     const outputText = payload.output_text || payload.output?.flatMap(item => item.content || []).find(item => item.type === 'output_text')?.text;
     if (!outputText) throw new Error(`OpenAI returned no structured review text for batch ${index + 1}.`);
     const batchReview = validateReview(JSON.parse(outputText));
@@ -147,3 +161,4 @@ try {
   console.error(message);
   process.exitCode = 1;
 }
+

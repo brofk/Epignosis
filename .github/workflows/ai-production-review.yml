@@ -31,5 +31,16 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          AI_USAGE_PATH: ai-usage/usage.jsonl
+          OPENAI_ROUTINE_MODEL: ${{ vars.OPENAI_ROUTINE_MODEL }}
           OPENAI_REVIEW_MODEL: ${{ vars.OPENAI_REVIEW_MODEL }}
         run: node .github/scripts/ai-review.mjs
+
+      - name: Save token accounting even when review fails
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: ai-usage-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ai-usage/usage.jsonl
+          retention-days: 90
+          if-no-files-found: warn
