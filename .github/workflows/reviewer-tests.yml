@@ -5,10 +5,12 @@ on:
       - '.github/scripts/**'
       - '.github/workflows/ai-production-review.yml'
       - '.github/workflows/reviewer-tests.yml'
+      - '.github/workflows/ai-weekly-cost.yml'
   push:
     paths:
       - '.github/scripts/**'
       - '.github/workflows/reviewer-tests.yml'
+      - '.github/workflows/ai-weekly-cost.yml'
 permissions:
   contents: read
 jobs:
@@ -23,4 +25,5 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: '24.19.0'
-      - run: node --test .github/scripts/review-diff.test.mjs
+      - run: node --test .github/scripts/*.test.mjs
+
