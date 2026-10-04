@@ -356,3 +356,12 @@ test('a changed request cannot reuse a previous successful submission ID',async(
  const prayer=submission('prayer');prayer.data.email='prayer@example.test';prayer.followUp=false;await contact.POST(req(prayer,'/api/contact'));
  assert.equal((await contact.POST(req({...prayer,followUp:true},'/api/contact'))).status,409);
 });
+
+
+test('retry treats omitted and empty optional strings alike and ignores server consent metadata',async()=>{
+ const p=submission();await contact.POST(req(p,'/api/contact'));
+ assert.equal((await contact.POST(req({...p,data:{...p.data,lastName:'',locale:'',timeZone:''}},'/api/contact'))).status,200);
+ const row=sqlite.prepare('SELECT payload FROM submissions WHERE id=?').get(p.id);const saved=JSON.parse(row.payload);saved.consentedAt='2026-10-01T00:00:00Z';saved.unrelatedServerMetadata=true;
+ sqlite.prepare('UPDATE submissions SET payload=? WHERE id=?').run(JSON.stringify(saved),p.id);
+ assert.equal((await contact.POST(req(p,'/api/contact'))).status,200);
+});
