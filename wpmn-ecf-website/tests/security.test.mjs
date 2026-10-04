@@ -282,3 +282,37 @@ test('legacy series keeps its old next teaching until the new next step replaces
  assert.equal(saved.nextStepUrl,'/articles/what-is-union-with-christ');
  assert.equal(saved.nextTeaching,undefined);
 });
+
+test('asset route handles missing, stored and unavailable files without exposing errors',async()=>{
+ const assets=await import('../app/api/assets/[id]/route.ts');
+ const id='00000000-0000-0000-0000-000000000000';
+ const get=value=>assets.GET(new Request('https://ministry.test/api/assets/'+value),{params:Promise.resolve({id:value})});
+ assert.equal((await get('invalid')).status,404);assert.equal((await get(id)).status,404);
+ sqlite.prepare('INSERT INTO assets (id,name,type,owner,created_at) VALUES (?,?,?,?,?)').run(id,'synthetic.pdf','application/pdf','synthetic','now');
+ globalThis.__testEnv.BUCKET={get:async()=>null};assert.equal((await get(id)).status,404);
+ globalThis.__testEnv.BUCKET={get:async()=>({body:'test'})};const response=await get(id);assert.equal(response.status,200);assert.equal(response.headers.get('content-type'),'application/pdf');assert.match(response.headers.get('content-disposition'),/attachment/);assert.equal(await response.text(),'test');
+ globalThis.__testEnv.BUCKET={get:async()=>{throw new Error('PRIVATE_DETAIL');}};const unavailable=await get(id);assert.equal(unavailable.status,503);assert.ok(!(await unavailable.text()).includes('PRIVATE_DETAIL'));delete globalThis.__testEnv.BUCKET;
+});
+
+test('authorized upload validates content and publish permission before storage',async()=>{
+ identity('editor');let stored=0;
+ globalThis.__testEnv.BUCKET={put:async()=>{stored++;},delete:async()=>{}};
+ const request=(type='image/png',bytes=new Uint8Array([137,80,78,71]),permission='yes')=>{
+  const form=new FormData();form.set('file',new File([bytes],'synthetic.png',{type}));form.set('permission',permission);
+  return new Request('https://ministry.test/api/upload',{method:'POST',headers:{origin:'https://ministry.test'},body:form});
+ };
+ for(const r of [request('image/svg+xml'),request('image/png',new Uint8Array([1,2,3])),request('image/png',undefined,'no')])assert.equal((await upload.POST(r)).status,400);
+ assert.equal(stored,0);
+ const response=await upload.POST(request());assert.equal(response.status,200);const data=await response.json();assert.match(data.url,/^\/api\/assets\/[a-f0-9-]{36}$/);assert.equal(stored,1);
+ const asset=sqlite.prepare('SELECT * FROM assets').get();assert.equal(asset.owner,'test-user');assert.equal(asset.type,'image/png');delete globalThis.__testEnv.BUCKET;
+});
+test('upload cleans stored object if database persistence fails',async()=>{
+ identity('editor');const originalDB=globalThis.__testEnv.DB;let removed='';let stored='';
+ globalThis.__testEnv.BUCKET={put:async id=>{stored=id;},delete:async id=>{removed=id;}};
+ globalThis.__testEnv.DB={prepare:sql=>{if(sql.startsWith('INSERT INTO assets'))return {bind(){return this;},async run(){throw new Error('PRIVATE_DETAIL');}};return originalDB.prepare(sql);}};
+ try{
+  const form=new FormData();form.set('file',new File([new Uint8Array([137,80,78,71])],'synthetic.png',{type:'image/png'}));form.set('permission','yes');
+  const response=await upload.POST(new Request('https://ministry.test/api/upload',{method:'POST',headers:{origin:'https://ministry.test'},body:form}));
+  assert.equal(response.status,503);assert.ok(stored);assert.equal(removed,stored);assert.ok(!(await response.text()).includes('PRIVATE_DETAIL'));
+ }finally{globalThis.__testEnv.DB=originalDB;delete globalThis.__testEnv.BUCKET;}
+});

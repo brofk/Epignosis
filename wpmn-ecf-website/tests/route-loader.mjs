@@ -1,9 +1,8 @@
 // Isolated tests only. Never imported by application code or production builds.
-import {registerHooks} from 'node:module';
+import {registerHooks,stripTypeScriptTypes} from 'node:module';
 import {readFileSync,existsSync} from 'node:fs';
 import {fileURLToPath,pathToFileURL} from 'node:url';
 import {resolve} from 'node:path';
-import ts from 'typescript';
 const root=resolve(import.meta.dirname,'..');
 registerHooks({
  resolve(specifier,context,next){
@@ -21,7 +20,7 @@ registerHooks({
   if(url==='test:cloudflare')return {format:'module',source:'export const env=globalThis.__testEnv;',shortCircuit:true};
   if(url==='test:headers')return {format:'module',source:'export async function headers(){return globalThis.__testHeaders;}',shortCircuit:true};
   if(url==='test:navigation')return {format:'module',source:'export function redirect(url){throw new Error("redirect:"+url);}',shortCircuit:true};
-  if(url.endsWith('.ts')&&!url.includes('/node_modules/'))return {format:'module',source:ts.transpileModule(readFileSync(new URL(url),'utf8'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText,shortCircuit:true};
+  if(url.endsWith('.ts')&&!url.includes('/node_modules/'))return {format:'module',source:stripTypeScriptTypes(readFileSync(new URL(url),'utf8'),{mode:'strip',sourceUrl:url}),shortCircuit:true};
   return next(url,context);
  }
 });
