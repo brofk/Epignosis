@@ -24,7 +24,7 @@ class CollectorTest(unittest.TestCase):
                     {'id':103,'name':'ai-usage-45-1','expired':False,'workflow_run':{'id':45}},
                     {'id':104,'name':'ai-usage-44-3','expired':True,'workflow_run':{'id':44}}]})
             return json.dumps({'event':'pull_request_target' if endpoint.endswith('/44') else 'pull_request',
-                               'path':'.github/workflows/ai-production-review.yml', 'created_at':'2025-01-01T00:00:00Z'})
+                               'repository':{'full_name':'brofk/Epignosis'},'name':'AI production review','path':'.github/workflows/ai-production-review.yml', 'created_at':'2025-01-01T00:00:00Z'})
         with tempfile.TemporaryDirectory() as directory, patch.object(subprocess,'check_output',side_effect=api), patch.object(subprocess,'run') as download:
             self.assertEqual(collector.collect('brofk/Epignosis',pathlib.Path(directory)),2)
             self.assertEqual(download.call_count,2)
@@ -33,7 +33,7 @@ class CollectorTest(unittest.TestCase):
     def test_download_failure_fails_collection(self):
         artifact={'id':1,'name':'ai-usage-44-1','expired':False,'workflow_run':{'id':44}}
         def api(args,**kwargs):
-            return json.dumps({'artifacts':[artifact]} if 'artifacts?' in args[2] else {'event':'pull_request_target','path':'.github/workflows/ai-production-review.yml'})
+            return json.dumps({'artifacts':[artifact]} if 'artifacts?' in args[2] else {'event':'pull_request_target','repository':{'full_name':'brofk/Epignosis'},'name':'AI production review','path':'.github/workflows/ai-production-review.yml'})
         with tempfile.TemporaryDirectory() as directory, patch.object(subprocess,'check_output',side_effect=api), patch.object(subprocess,'run',side_effect=RuntimeError('download failed')):
             with self.assertRaises(RuntimeError): collector.collect('brofk/Epignosis',pathlib.Path(directory))
 

@@ -23,7 +23,7 @@ def collect(repo, root=pathlib.Path('telemetry')):
             run_id = artifact['workflow_run']['id']
             if run_id not in trusted_runs:
                 run = api(f'repos/{repo}/actions/runs/{run_id}')
-                trusted_runs[run_id] = run['event'] == 'pull_request_target' and run['path'] == '.github/workflows/ai-production-review.yml'
+                trusted_runs[run_id] = run['event'] == 'pull_request_target' and run['path'] == '.github/workflows/ai-production-review.yml' and run.get('repository', {}).get('full_name') == repo and run.get('name') == 'AI production review'
             if not trusted_runs[run_id]:
                 continue
             destination = root / str(artifact['id'])

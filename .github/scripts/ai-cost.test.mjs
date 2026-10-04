@@ -34,7 +34,7 @@ test('cache reads subtracted from full-price input; missing usage and writes sta
 test('weekly report counts retries, deduplicates artifacts and keeps unknown usage visible',()=>{
   const now=new Date('2026-10-06T00:00:00Z');
   const row=usageRecord(payload,metadata,now);
-  const rows=[row,row,usageRecord(payload,{...metadata,attempt:'2'},now),usageRecord({}, {...metadata,batch:2},now),
+  const rows=[usageRecord({},metadata,now),row,row,usageRecord(payload,{...metadata,attempt:'2'},now),usageRecord({}, {...metadata,batch:2},now),
     usageRecord(payload,{...metadata,batch:3},new Date('2026-10-12T16:00:00Z'))];
   const report=weeklyReport(rows,new Date('2026-10-04T16:00:00Z'),new Date('2026-10-11T16:00:00Z'));
   const group=report.groups['ai-production-review / gpt-5.4'];

@@ -4,14 +4,12 @@ import {pathToFileURL} from 'node:url';
 
 export function weeklyReport(records, start, end) {
   if (!Number.isFinite(+start) || !Number.isFinite(+end) || +start >= +end) throw new Error('Invalid report window');
-  const seen = new Set(), groups = new Map();
-  for (const r of records) {
+  const latest = new Map(), groups = new Map();
+  for (const r of records) latest.set(JSON.stringify([r.repository, r.runId, r.attempt, r.batch]), r);
+  for (const r of latest.values()) {
     const timestamp = Date.parse(r.timestamp);
     if (!Number.isFinite(timestamp)) throw new Error('Invalid usage timestamp');
     if (timestamp < +start || timestamp >= +end) continue;
-    const id = JSON.stringify([r.repository, r.runId, r.attempt, r.batch]);
-    if (seen.has(id)) continue;
-    seen.add(id);
     // Only trusted reviewer telemetry is supported. No prompts or code enter the report.
     if (!/^[a-zA-Z0-9._-]+$/.test(r.model) || r.workflow !== 'ai-production-review') throw new Error('Invalid usage identity');
     const key = `${r.workflow} / ${r.model}`;
