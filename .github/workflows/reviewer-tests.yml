@@ -27,3 +27,4 @@ jobs:
           node-version: '24.19.0'
       - run: node --test .github/scripts/*.test.mjs
 
+      - run: python3 .github/scripts/test_collect_ai_usage.py
