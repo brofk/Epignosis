@@ -1,10 +1,11 @@
-"""Collect only trusted reviewer artifacts, using gh's authenticated download handling."""
+"""Collect only trusted reviewer runs. gh handles authenticated artifact redirects."""
 import datetime
 import json
 import os
 import pathlib
 import re
 import subprocess
+from urllib.parse import urlencode
 
 repo = os.environ['GITHUB_REPOSITORY']
 if not re.fullmatch(r'[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+', repo):
@@ -15,26 +16,41 @@ def api(path):
 
 root = pathlib.Path('telemetry')
 root.mkdir(exist_ok=True)
-cutoff = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=15)
 count = 0
-for page in range(1, 101):
-    artifacts = api(f'repos/{repo}/actions/artifacts?per_page=100&page={page}')['artifacts']
-    for artifact in artifacts:
-        if not re.fullmatch(r'ai-usage-\d+-\d+', artifact['name']) or artifact['expired']:
-            continue
-        if datetime.datetime.fromisoformat(artifact['created_at'].replace('Z', '+00:00')) < cutoff:
-            continue
-        run_id = artifact['workflow_run']['id']
-        run = api(f'repos/{repo}/actions/runs/{run_id}')
-        if run['event'] != 'pull_request_target' or run['path'] != '.github/workflows/ai-production-review.yml':
-            continue
-        destination = root / str(artifact['id'])
-        destination.mkdir(exist_ok=True)
-        subprocess.run(['gh', 'run', 'download', str(run_id), '--repo', repo,
-                        '--name', artifact['name'], '--dir', str(destination)], check=True)
-        count += 1
-    if len(artifacts) < 100:
-        break
-else:
-    raise RuntimeError('Artifact pagination limit reached; cannot claim complete collection')
+now = datetime.datetime.now(datetime.timezone.utc)
+seen = set()
+# Scope pagination to this workflow and one UTC day at a time. Unrelated repository
+# artifacts do not consume the collection budget; never rely on artifact ordering.
+for offset in range(16):
+    day = (now - datetime.timedelta(days=offset)).date().isoformat()
+    page = 1
+    while True:
+        query = urlencode({'event': 'pull_request_target', 'created': day, 'per_page': 100, 'page': page})
+        result = api(f'repos/{repo}/actions/workflows/ai-production-review.yml/runs?{query}')
+        if result['total_count'] > 1000:
+            raise RuntimeError(f'More than 1000 reviewer runs on {day}; GitHub filtered-search limit prevents complete reporting')
+        runs = result['workflow_runs']
+        for run in runs:
+            if run['id'] in seen:
+                continue
+            seen.add(run['id'])
+            if run['event'] != 'pull_request_target' or run['path'] != '.github/workflows/ai-production-review.yml':
+                raise ValueError('Unexpected workflow identity')
+            artifact_page = 1
+            while True:
+                artifacts = api(f"repos/{repo}/actions/runs/{run['id']}/artifacts?per_page=100&page={artifact_page}")['artifacts']
+                for artifact in artifacts:
+                    if not re.fullmatch(r'ai-usage-\d+-\d+', artifact['name']) or artifact['expired']:
+                        continue
+                    destination = root / str(artifact['id'])
+                    destination.mkdir(exist_ok=True)
+                    subprocess.run(['gh', 'run', 'download', str(run['id']), '--repo', repo,
+                                    '--name', artifact['name'], '--dir', str(destination)], check=True)
+                    count += 1
+                if len(artifacts) < 100:
+                    break
+                artifact_page += 1
+        if len(runs) < 100:
+            break
+        page += 1
 print(f'Collected {count} reviewer usage artifacts; prior-to-activation usage is unavailable.')

@@ -102,7 +102,7 @@ try {
         prompt_cache_key: cacheKey(repository, instructions, schema),
         max_output_tokens: 12000,
         instructions,
-        input: `CHANGED FILE MANIFEST\n${fileManifest}\n\nRepository: ${repository}\nPull request: ${pullNumber}\nHead SHA: ${expectedHead}\nBatch: ${index + 1} of ${diffBatches.length}\n\nReview every file part in this batch. A large file can span batches; RIGHT and LEFT labels give actual source line numbers. Binary files are represented by Git metadata only, not reviewed binary contents. The remaining files are reviewed in separate batches; do not report success or failure for files not shown here.\n\nUNTRUSTED DIFF BATCH BEGINS\n${diffBatches[index]}\nUNTRUSTED DIFF BATCH ENDS`,
+        input: `CHANGED FILE MANIFEST\n${fileManifest}\n\nReview every file part in this batch. A large file can span batches; RIGHT and LEFT labels give actual source line numbers. Binary files are represented by Git metadata only, not reviewed binary contents. The remaining files are reviewed in separate batches; do not report success or failure for files not shown here.\n\nUNTRUSTED DIFF BATCH BEGINS\n${diffBatches[index]}\nUNTRUSTED DIFF BATCH ENDS\n\nREQUEST IDENTITY\nRepository: ${repository}\nPull request: ${pullNumber}\nHead SHA: ${expectedHead}\nBatch: ${index + 1} of ${diffBatches.length}`,
         text: {format: {type: 'json_schema', name: 'production_review', strict: true, schema}},
       }),
     }).catch(error => { recordUsage({}, {...metadata, status: 'transport-error'}); throw new Error('OpenAI transport failed; usage unknown.'); });

@@ -2,6 +2,13 @@ name: Weekly AI cost report
 on:
   schedule:
     - cron: '0 1 * * 1'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/ai-weekly-cost.yml'
+      - '.github/scripts/ai-cost.mjs'
+      - '.github/scripts/ai-report.mjs'
+      - '.github/scripts/collect-ai-usage.py'
   workflow_dispatch:
 permissions:
   contents: read
