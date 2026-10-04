@@ -16,7 +16,7 @@ class CollectorTest(unittest.TestCase):
         def api(args, **kwargs):
             endpoint=args[2];calls.append(endpoint)
             if 'artifacts?' in endpoint:
-                if 'page=1' in endpoint:
+                if endpoint.endswith('&page=1'):
                     return json.dumps({'artifacts':[{'id':i,'name':'unrelated','expired':False} for i in range(100)]})
                 return json.dumps({'artifacts':[
                     {'id':101,'name':'ai-usage-44-1','expired':False,'workflow_run':{'id':44}},
