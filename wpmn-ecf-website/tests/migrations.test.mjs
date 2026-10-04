@@ -120,3 +120,18 @@ test('migration filenames are ordered by numeric prefix rather than text order',
   ]);
  }finally{rmSync(directory,{recursive:true,force:true});}
 });
+
+
+test('safety checks inspect every statement despite omitted breakpoints and comments',()=>{
+ const directory=mkdtempSync(join(tmpdir(),'wpmn-hidden-control-'));const file=join(directory,'0001_control.sql');
+ try{for(const tail of ['COMMIT;', '/* hidden */ COMMIT;', '-- hidden\nROLLBACK;', 'PRAGMA journal_mode=WAL;']){
+  writeFileSync(file,'CREATE TABLE should_not_exist (id TEXT); '+tail);
+  withDatabase(db=>{assert.throws(()=>applyMigrationFile(db,file),/transaction-control|unsupported/);assert.equal(db.prepare("SELECT COUNT(*) n FROM sqlite_master WHERE name='should_not_exist'").get().n,0);});
+ }}finally{rmSync(directory,{recursive:true,force:true});}
+});
+test('quoted semicolons and control words are data, not transaction boundaries',()=>{
+ const directory=mkdtempSync(join(tmpdir(),'wpmn-quoted-sql-'));const file=join(directory,'0001_strings.sql');
+ try{writeFileSync(file,"CREATE TABLE example (value TEXT); INSERT INTO example VALUES ('COMMIT; -- /* it''s data */');");
+  withDatabase(db=>{assert.equal(applyMigrationFile(db,file).status,'applied');assert.equal(db.prepare('SELECT value FROM example').get().value,"COMMIT; -- /* it's data */");});
+ }finally{rmSync(directory,{recursive:true,force:true});}
+});

@@ -36,3 +36,22 @@ The rewrite must be prepared against a confirmed exposure and verified current r
 Known scan failure: stop the push, inspect locally with full redaction, classify it, and repair without broad exclusions. Unknown credential: restrict evidence, identify its provider and owner, escalate before changing access. Confirmed exposure: the incident owner coordinates revocation, audit, downtime decisions and affected-person communications; the assistant does not delete evidence or make unattended financial changes.
 
 References: https://github.com/gitleaks/gitleaks and https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/removing-sensitive-data-from-a-repository.
+
+## Repository administrator completion steps
+
+Open https://github.com/brofk/Epignosis/settings/rules and create an active branch ruleset named Website safeguards. Include branch-name patterns `main` and `sites-wpmn-ecf`. Leave the bypass list empty. Require a pull request before merging, restrict deletions, block force pushes, and require branches to be up to date. Add these exact required GitHub Actions checks: `Website unit tests and coverage`, `Website security tests`, `Secret scanning`, `AI production review`. Save, reopen, and confirm the ruleset is Active and both branches are targeted. The browser suite is part of Website security tests after the completion change merges. Do not enable Restrict updates with an empty bypass list, as it prevents normal updates too.
+
+For independent review, enable one required approval, code-owner review and dismissal of stale approvals only after assigning another eligible maintainer. CODEOWNERS currently names @brofk; an author cannot approve their own pull request, so a solo owner needs a separate reviewer for that policy. Required automated checks can be enforced immediately.
+
+Open repository Settings > Advanced Security. Enable Secret Protection if necessary, then enable Push protection. Confirm the saved page reports it enabled. If GitHub offers a paid upgrade rather than Enable, the repository plan/visibility needs an administrator decision; do not treat the feature as enabled. Native push protection and the Gitleaks Actions check are separate controls.
+
+Every developer clone must install Gitleaks 8.30.1 for its operating system from the official release, verify the matching release checksum, and put the binary on PATH. From the repository root run:
+
+```sh
+gitleaks version
+sh scripts/security/install-hooks.sh
+git config --local --get core.hooksPath
+sh scripts/security/scan-secrets.sh staged
+```
+
+Expected results: version 8.30.1, successful installation/scan, hooksPath `.githooks`. If an existing custom hook is detected, integrate the secret scan into it instead of replacing it. Repeat in every clone; hook configuration is local and does not follow a clone or pull. Never test this with a real secret.
