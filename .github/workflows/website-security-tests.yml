@@ -59,6 +59,10 @@ jobs:
         run: npm install --global pnpm@11.25.0
       - name: Install pinned dependencies
         run: pnpm install --frozen-lockfile
+      - name: Lint website source
+        run: npm run lint
+      - name: Security regression checks
+        run: npm run test:security
       - name: API journeys, local D1, migrations and coverage
         run: npm run test:integration
       - name: Type-check
