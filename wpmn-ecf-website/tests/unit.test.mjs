@@ -2,6 +2,7 @@ import './route-loader.mjs';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {readdirSync} from 'node:fs';
+import {DatabaseSync} from 'node:sqlite';
 globalThis.__testEnv={SITE_ORIGIN:'https://ministry.test',RATE_LIMIT_SALT:'synthetic'};
 globalThis.__testHeaders=new Headers();
 // Include every shared library in coverage, even when no behavior test exists yet.
@@ -10,6 +11,82 @@ for(const file of readdirSync(new URL('../lib/',import.meta.url)).filter(f=>f.en
 const auth=await import('../app/chatgpt-auth.ts');
 const permissions=modules['permissions.ts'],store=modules['store.ts'],brand=modules['brand.ts'],security=modules['security.ts'];
 const {editorInput}=modules['editor-input.ts'];
+const repositories=modules['content-repository.ts'];
+
+function contentDatabase() {
+ const sqlite=new DatabaseSync(':memory:');
+ sqlite.exec('CREATE TABLE settings (key TEXT,value TEXT,version INTEGER); CREATE TABLE records (id TEXT,kind TEXT,title TEXT,slug TEXT,status TEXT,data TEXT,version INTEGER,updated_at TEXT)');
+ const statements=[];
+ const database={prepare(sql){
+  const statement=(args=[])=>({
+   bind(...values){return statement(values);},
+   async all(){statements.push({sql,args});return {results:sqlite.prepare(sql).all(...args)};}
+  });
+  return statement();
+ }};
+ const insert=(id,status,data='{"body":"Synthetic content"}',updatedAt='2026-10-27')=>sqlite.prepare('INSERT INTO records VALUES (?,?,?,?,?,?,?,?)').run(id,'article',id,id,status,data,3,updatedAt);
+ return {sqlite,database,statements,insert};
+}
+
+test('public repository reads published bodies only and suppresses saved seeds by ID',async()=>{
+ const fixture=contentDatabase();
+ try {
+  fixture.sqlite.prepare('INSERT INTO settings VALUES (?,?,?)').run('home.heroHeading','Synthetic heading',2);
+  fixture.insert('published','published');
+  fixture.insert('unpublished-seed','draft','INVALID_PRIVATE_DRAFT_JSON');
+  const repository=repositories.createPublicContentRepository(fixture.database);
+  assert.deepEqual((await repository.settings()).map(row=>({...row})),[{key:'home.heroHeading',value:'Synthetic heading',version:2}]);
+  const records=await repository.publishedRecords();
+  assert.equal(records.length,1);
+  assert.deepEqual(records[0],{id:'published',kind:'article',title:'published',slug:'published',status:'published',data:{body:'Synthetic content'},updatedAt:'2026-10-27',version:3});
+  assert.deepEqual(await repository.savedSeedIds(['unpublished-seed','missing']),['unpublished-seed']);
+  assert.deepEqual(Object.keys(repository).sort(),['publishedRecords','savedSeedIds','settings']);
+  const calls=fixture.statements.length;
+  assert.deepEqual(await repository.savedSeedIds([]),[]);
+  assert.equal(fixture.statements.length,calls);
+  const hostile="x'); DROP TABLE records; --";
+  assert.deepEqual(await repository.savedSeedIds([hostile]),[]);
+  assert.deepEqual(fixture.statements.at(-1).args,[JSON.stringify([hostile])]);
+  assert.equal(fixture.sqlite.prepare('SELECT count(*) AS n FROM records').get().n,2);
+ } finally {fixture.sqlite.close();}
+});
+
+test('editor repository adapts drafts and published records in date order',async()=>{
+ const fixture=contentDatabase();
+ try {
+  fixture.insert('older','published','{"body":"Public"}','2026-10-25');
+  fixture.insert('newer','draft','{"body":"Synthetic draft"}','2026-10-27');
+  const records=await repositories.createEditorContentRepository(fixture.database).records();
+  assert.deepEqual(records.map(record=>[record.id,record.status]),[['newer','draft'],['older','published']]);
+  assert.equal(records[0].data.body,'Synthetic draft');
+ } finally {fixture.sqlite.close();}
+});
+
+test('repository instances keep their injected database and share no content state',async()=>{
+ const first=contentDatabase(),second=contentDatabase();
+ try {
+  first.insert('first-site','published');second.insert('second-site','published');
+  const a=repositories.createPublicContentRepository(first.database),b=repositories.createPublicContentRepository(second.database);
+  assert.equal((await a.publishedRecords())[0].id,'first-site');
+  assert.equal((await b.publishedRecords())[0].id,'second-site');
+  first.sqlite.prepare('UPDATE records SET status=?').run('draft');
+  assert.deepEqual(await a.publishedRecords(),[]);
+  assert.equal((await b.publishedRecords())[0].id,'second-site');
+ } finally {first.sqlite.close();second.sqlite.close();}
+});
+
+test('repository failures propagate without retries or replacement content',async()=>{
+ let calls=0;
+ const database={prepare(){return {bind(){return this;},async all(){calls++;throw new Error('SYNTHETIC_DATABASE_FAILURE');}};}};
+ const publicRepository=repositories.createPublicContentRepository(database);
+ for(const read of [()=>publicRepository.settings(),()=>publicRepository.publishedRecords(),()=>publicRepository.savedSeedIds(['saved']),()=>repositories.createEditorContentRepository(database).records()])await assert.rejects(read,/SYNTHETIC_DATABASE_FAILURE/);
+ assert.equal(calls,4);
+ const fixture=contentDatabase();
+ try {
+  fixture.insert('broken','published','INVALID_JSON');
+  await assert.rejects(repositories.createPublicContentRepository(fixture.database).publishedRecords(),SyntaxError);
+ } finally {fixture.sqlite.close();}
+});
 test('permission matrix rejects unknown roles and limits ordinary editors',()=>{
  for(const role of [null,undefined,'viewer','owner','unexpected',{},0]){
   assert.equal(permissions.isEditorRole(role),false);
