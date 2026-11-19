@@ -1,0 +1,10 @@
+# Repository rules
+
+- At session start, load this file before working. If your agent does not load it automatically, make reading it the first step. Read [CODEBASE_MAP.md](CODEBASE_MAP.md) before planning work across folders, changing architecture, or handling data. Read the website's nested [AGENTS.md](wpmn-ecf-website/AGENTS.md) before working there.
+- The website is under `wpmn-ecf-website/`. Use Node 24, pinned pnpm 11.25.0 and `pnpm install --frozen-lockfile`. The stack is React, TypeScript, Next-style routes on Vinext, Tailwind, and Cloudflare Workers with Drizzle, D1, and R2. Keep website changes out of the root streaming app.
+- Use kebab-case for new feature files and URL slugs. Keep framework filenames such as `page.tsx` and `route.ts`. Use PascalCase for React components, camelCase for functions, and the existing `*.test.mjs` or `*.spec.ts` patterns for website tests.
+- Work on a branch and submit a scoped pull request. Never push directly to `main` or `sites-wpmn-ecf`. Agents must never deploy, publish, change production settings, or read or write production data. Never delete ministry records, uploads, or databases. Use synthetic fixtures and local D1/R2 state.
+- Never put credentials or private records in code, fixtures, commits, logs, screenshots, or PR text. Use placeholder values in examples. Never apply a migration remotely or rewrite a published migration. Follow the owner-controlled boundaries in the map. Never bypass checks, lower coverage, or hide dependency scan failures to get a green result.
+- Apply the [Artifact policy](ARTIFACT_POLICY.md) before committing build or test output.
+- Review the map for every merge. Update affected entries in the same PR when folder roles, data storage, or protected boundaries change. Record the review in the PR.
+- Run `bash scripts/check.sh` from the repository root before calling a task complete. See the map for prerequisites. Paste the actual result block and explain any failure in the task and PR summaries. A failed or unavailable check leaves the task incomplete.

@@ -60,12 +60,16 @@ jobs:
       - name: Install pinned dependencies
         run: pnpm install --frozen-lockfile
       - name: API journeys, local D1, migrations and coverage
-        run: npm run test:integration
+        run: pnpm run test:integration
       - name: Type-check
-        run: node node_modules/typescript/bin/tsc --noEmit
+        run: pnpm exec tsc --noEmit
+      - name: Lint
+        run: pnpm run lint
+      - name: Audit high and critical dependency advisories
+        run: pnpm audit --audit-level high
       - name: Build production site
-        run: npm run build
+        run: pnpm run build
       - name: Install browser test runtime
         run: pnpm exec playwright install chromium --with-deps --only-shell
       - name: Browser journeys in Indian and Ghanaian locales
-        run: npm run test:browser
+        run: pnpm run test:browser
