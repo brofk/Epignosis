@@ -1,7 +1,7 @@
 import {z} from 'zod';
 const id=z.string().min(1).max(100);
 const version=z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER-1);
-const plainData=z.record(z.string().max(120000)).refine(x=>Object.keys(x).length<=40&&!Object.keys(x).some(k=>['__proto__','constructor','prototype'].includes(k))).superRefine((x,ctx)=>{
+const plainData=z.record(z.string(),z.string().max(120000)).refine(x=>Object.keys(x).length<=40&&!Object.keys(x).some(k=>['__proto__','constructor','prototype'].includes(k))).superRefine((x,ctx)=>{
  const label=(x.nextStepLabel||'').trim(),url=(x.nextStepUrl||'').trim();
  if(Boolean(label)!==Boolean(url))ctx.addIssue({code:'custom',message:'A next step needs both a label and a page address.'});
  if(url&&(!url.startsWith('/')||url.startsWith('//')||url.includes('\\')))ctx.addIssue({code:'custom',path:['nextStepUrl'],message:'The next-step page must be an internal website address beginning with /.'});
