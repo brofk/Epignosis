@@ -17,3 +17,17 @@ node_modules/
 .security-tools/
 __pycache__/
 *.pyc
+
+# Private development and verification artifacts
+screenshots/
+captures/
+debug-artifacts/
+test-results/
+playwright-report/
+blob-report/
+*.har
+*.webm
+trace.zip
+*.sqlite
+*.sqlite3
+*.db
