@@ -4,7 +4,7 @@
 | --- | --- |
 | Root HTML, CSS, JavaScript and `assets/` | Separate Epignosis streaming app and icons. Outside website change scope. |
 | `.github/`, `.githooks/` | Pull request checks, reviewer, ownership, and local commit hook. |
-| `scripts/`, `tests/` | Repository check entry point, secret-scan tooling and its tests. |
+| `scripts/`, `tests/` | Repository check entry point, artifact policy check, and secret-scan tooling and tests. |
 | `wpmn-ecf-website/` | WPMN and ECF public site, protected editor, lockfile and app config. |
 | `wpmn-ecf-website/.openai/` | Sites hosting and storage binding configuration. |
 | `wpmn-ecf-website/app/` | Public pages, private editor, API handlers, and Sites identity adapter. |

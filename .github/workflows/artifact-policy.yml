@@ -1,0 +1,22 @@
+name: Artifact policy
+
+on:
+  pull_request:
+    branches: [main, sites-wpmn-ecf]
+  merge_group:
+
+permissions:
+  contents: read
+
+jobs:
+  artifact-policy:
+    name: Artifact policy
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out merge candidate
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Check tracked paths
+        run: python3 scripts/check-artifact-policy.py

@@ -32,6 +32,7 @@ check_map() {
 }
 
 run_check "Codebase map" check_map
+run_check "Artifact policy" python3 scripts/check-artifact-policy.py
 run_check "Reviewer tests (Node)" node --test .github/scripts/*.test.mjs
 run_check "Reviewer tests (Python)" python3 .github/scripts/test_collect_ai_usage.py
 
