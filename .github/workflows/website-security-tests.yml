@@ -66,6 +66,6 @@ jobs:
       - name: Build production site
         run: npm run build
       - name: Install browser test runtime
-        run: pnpm exec playwright install chromium --with-deps --only-shell
+        run: pnpm exec playwright install chromium firefox webkit --with-deps
       - name: Browser journeys in Indian and Ghanaian locales
         run: npm run test:browser

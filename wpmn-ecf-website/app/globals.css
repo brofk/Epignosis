@@ -1,4 +1,3 @@
-@import url("https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap");
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "../vendor/shadcn-tailwind-4.13.0.css";
@@ -21,3 +20,6 @@
 
 /* Official ECF palette, logo clear space and responsive reading controls. */
 .path-grid{grid-template-columns:repeat(4,minmax(0,1fr))}.strip-logo{width:170px;height:auto;object-fit:contain;background:white;padding:8px 12px}.ecf-page-logo{display:block;max-width:320px;width:100%;height:auto;margin:0 0 30px;background:white;padding:12px}.footer-logo{background:white;padding:10px;border-radius:3px}.hero-tagline{color:#fff;font-family:Inter,Arial,sans-serif;font-size:1.12rem;max-width:600px}.hero-body{font-size:1.0625rem}.path-card p,.body-copy p,.value-item p,.text-panel p{font-size:1rem}.hero,.belief-section,.connect-band{overflow-wrap:anywhere}.path-card,.text-panel,.split>*,.two-col>*{min-width:0}.button:focus-visible,.text-link:focus-visible{outline:3px solid var(--violet);outline-offset:4px}.button.light:hover{color:white}.footer-grid a:focus-visible,.hero a:focus-visible{outline-color:white}input,textarea{font-size:1rem}img{max-width:100%}.hero-photo{object-position:center center}.paragraph-links{display:flex;flex-wrap:wrap;gap:24px}@media(max-width:1000px){.path-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.strip-logo{width:130px}}@media(max-width:600px){.path-grid{grid-template-columns:1fr}.path-card{padding:24px 4px;border-right:0;border-bottom:1px solid var(--border)}.path-card:last-child{border-bottom:0}.hero h1{font-size:clamp(2.55rem,10vw,3.15rem)}.hero .actions{align-items:stretch}.hero .button{width:100%}.header-visit{display:none}.menu-button{margin-left:auto}.strip-logo{width:135px}.hero-inner{padding-top:52px;padding-bottom:56px}}@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*,*::before,*::after{animation:none!important;transition:none!important}.button:hover{transform:none}}
+
+/* Keep custom validation feedback visible without relying on color alone. */
+[aria-invalid="true"]{outline:2px solid #963a3a;outline-offset:2px}
