@@ -59,8 +59,17 @@ jobs:
         run: npm install --global pnpm@11.25.0
       - name: Install pinned dependencies
         run: pnpm install --frozen-lockfile
+      - name: API journeys, local D1, migrations and coverage
+        run: pnpm run test:integration
+      - name: Type-check
+        run: pnpm exec tsc --noEmit
+      - name: Lint
+        run: pnpm run lint
+      - name: Audit high and critical dependency advisories
+        run: pnpm audit --audit-level high
+      - name: Build production site
+        run: pnpm run build
       - name: Install browser test runtime
         run: pnpm exec playwright install chromium --with-deps --only-shell
-      - name: Run repository harness
-        working-directory: .
-        run: bash scripts/check.sh
+      - name: Browser journeys in Indian and Ghanaian locales
+        run: pnpm run test:browser
